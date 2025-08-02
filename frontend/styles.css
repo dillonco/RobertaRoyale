@@ -670,7 +670,7 @@ body {
     opacity: 0.8;
 }
 
-/* Game Board Styles */
+/* Modern Card Table Design */
 .game-board {
     flex: 1;
     display: grid;
@@ -684,40 +684,82 @@ body {
     max-width: 1200px;
     margin: 0 auto;
     width: 100%;
+    position: relative;
+    
+    /* Card Table Surface */
+    background: 
+        /* Felt texture */
+        radial-gradient(ellipse at center, #1a5d1a 0%, #0f4a0f 100%),
+        /* Subtle fabric pattern */
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 2px,
+            rgba(255, 255, 255, 0.02) 2px,
+            rgba(255, 255, 255, 0.02) 4px
+        );
+    border-radius: 50px;
+    border: 8px solid #8B4513;
+    box-shadow: 
+        /* Table edge shadow */
+        inset 0 0 0 4px #A0522D,
+        inset 0 0 0 8px #654321,
+        /* Table drop shadow */
+        0 20px 40px rgba(0, 0, 0, 0.3),
+        0 10px 20px rgba(0, 0, 0, 0.2);
+    
+    /* Table surface lighting */
+    background-image: 
+        radial-gradient(ellipse 80% 60% at 50% 40%, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
 }
 
 .player-area {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
+    position: relative;
+    z-index: 10;
+    padding: 20px;
 }
 
-.player-area.north { grid-area: north; }
+.player-area.north { 
+    grid-area: north; 
+    justify-content: flex-end;
+}
 .player-area.east { 
     grid-area: east; 
     flex-direction: row;
-    justify-content: center;
+    justify-content: flex-start;
+    align-items: center;
 }
 .player-area.south { 
     grid-area: south; 
     flex-direction: column-reverse;
+    justify-content: flex-start;
 }
 .player-area.west { 
     grid-area: west; 
     flex-direction: row-reverse;
-    justify-content: center;
+    justify-content: flex-start;
+    align-items: center;
 }
 
 .player-info {
     display: flex;
     align-items: center;
     gap: 10px;
-    background: rgba(255, 255, 255, 0.1);
-    padding: 8px 15px;
-    border-radius: 20px;
-    backdrop-filter: blur(5px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.6);
+    padding: 10px 16px;
+    border-radius: 25px;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(139, 69, 19, 0.8);
+    box-shadow: 
+        0 4px 12px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    font-weight: 600;
+    color: #fff;
+    position: relative;
 }
 
 .player-area.current-player .player-info {
@@ -763,11 +805,11 @@ body {
     flex-direction: column;
 }
 
-/* Card Styles */
+/* Enhanced Card Styles for Table */
 .card {
     width: 60px;
     height: 84px;
-    background: white;
+    background: linear-gradient(145deg, #ffffff 0%, #f8f8f8 100%);
     border-radius: 8px;
     display: flex;
     flex-direction: column;
@@ -776,15 +818,33 @@ body {
     padding: 4px;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     position: relative;
-    border: 2px solid transparent;
+    border: 1px solid #ddd;
     transform-origin: center center;
+    
+    /* Realistic card shadows on table */
+    box-shadow: 
+        /* Card elevation shadow */
+        0 4px 8px rgba(0, 0, 0, 0.15),
+        0 2px 4px rgba(0, 0, 0, 0.1),
+        /* Soft glow on felt */
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        /* Table surface reflection */
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    
+    /* Subtle card texture */
+    background-image: 
+        radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(0, 0, 0, 0.02) 0%, transparent 50%);
 }
 
 .card:hover {
-    transform: translateY(-8px) scale(1.05);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    transform: translateY(-12px) scale(1.08);
+    box-shadow: 
+        0 12px 30px rgba(0, 0, 0, 0.25),
+        0 6px 12px rgba(0, 0, 0, 0.15),
+        0 0 0 2px rgba(255, 255, 255, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .card.playable {
@@ -927,14 +987,21 @@ body {
 
 .trick-cards {
     position: relative;
-    width: 200px;
+    width: 240px;
     height: 200px;
-    background: rgba(255, 255, 255, 0.1);
+    background: 
+        /* Center playing area */
+        radial-gradient(ellipse 90% 80% at center, rgba(0, 0, 0, 0.1) 0%, transparent 70%),
+        /* Subtle felt depression */
+        radial-gradient(ellipse 70% 60% at center, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
     border-radius: 50%;
-    border: 2px dashed rgba(255, 255, 255, 0.3);
+    border: 2px solid rgba(139, 69, 19, 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 
+        inset 0 2px 8px rgba(0, 0, 0, 0.2),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .trick-card {
@@ -985,22 +1052,32 @@ body {
 
 .trick-info {
     text-align: center;
-    background: rgba(255, 255, 255, 0.1);
-    padding: 10px 20px;
-    border-radius: 20px;
-    backdrop-filter: blur(5px);
+    background: rgba(0, 0, 0, 0.4);
+    padding: 12px 24px;
+    border-radius: 25px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(139, 69, 19, 0.5);
+    box-shadow: 
+        0 4px 12px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-weight: 600;
 }
 
 /* Action Panel */
 .action-panel {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border-radius: 15px;
-    padding: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(15px);
+    border-radius: 20px;
+    padding: 24px;
+    border: 2px solid rgba(139, 69, 19, 0.8);
     text-align: center;
     position: relative;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 
+        0 8px 20px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    color: #fff;
 }
 
 .action-panel.your-turn {

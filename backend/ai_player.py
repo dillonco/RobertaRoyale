@@ -1,8 +1,10 @@
-import random
 import asyncio
-from typing import List, Optional, Tuple
-from game_logic import Card, Suit, Rank, EuchreGame
+import random
 from dataclasses import dataclass
+from typing import List, Optional, Tuple
+
+from game_logic import Card, Suit, Rank
+
 
 @dataclass
 class AIPersonality:

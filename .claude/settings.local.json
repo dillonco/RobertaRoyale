@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(uv init:*)",
+      "Bash(timeout 10 uv run:*)",
+      "Bash(uv run:*)"
+    ],
+    "deny": []
+  }
+}

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roberta Royale - Online Euchre</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Main Menu Screen -->
+        <div id="main-menu" class="screen active">
+            <div class="menu-container">
+                <div class="background-card"></div>
+                <div class="background-card"></div>
+                <div class="background-card"></div>
+                <div class="background-card"></div>
+                
+                <h1 class="game-title">Roberta Royale</h1>
+                <p class="game-subtitle">Online Euchre</p>
+                
+                <div class="menu-actions">
+                    <div class="player-name-input">
+                        <input type="text" id="player-name" placeholder="Enter your name" maxlength="20">
+                    </div>
+                    
+                    <button id="create-room-btn" class="btn btn-primary">Create Room</button>
+                    
+                    <div class="join-room-section">
+                        <input type="text" id="room-code-input" placeholder="Enter room code" maxlength="6">
+                        <button id="join-room-btn" class="btn btn-secondary">Join Room</button>
+                    </div>
+                </div>
+                
+                <div id="connection-status" class="connection-status">
+                    <span class="status-indicator"></span>
+                    <span class="status-text">Connecting...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Waiting Room Screen -->
+        <div id="waiting-room" class="screen">
+            <div class="waiting-container">
+                <h2>Room <span id="room-code-display"></span></h2>
+                <p class="waiting-subtitle">Waiting for players...</p>
+                
+                <div class="players-list">
+                    <div class="player-slots">
+                        <div class="player-slot" data-position="0">
+                            <div class="player-card empty">
+                                <span class="position-label">North</span>
+                                <span class="player-name">Waiting...</span>
+                            </div>
+                        </div>
+                        <div class="player-slot" data-position="1">
+                            <div class="player-card empty">
+                                <span class="position-label">East</span>
+                                <span class="player-name">Waiting...</span>
+                            </div>
+                        </div>
+                        <div class="player-slot" data-position="2">
+                            <div class="player-card empty">
+                                <span class="position-label">South</span>
+                                <span class="player-name">Waiting...</span>
+                            </div>
+                        </div>
+                        <div class="player-slot" data-position="3">
+                            <div class="player-card empty">
+                                <span class="position-label">West</span>
+                                <span class="player-name">Waiting...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="room-info">
+                    <p>Share this room code with your friends:</p>
+                    <div class="room-code-share">
+                        <span id="room-code-large"></span>
+                        <button id="copy-room-code" class="btn btn-small">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="ai-controls" id="ai-controls">
+                    <p>Need more players?</p>
+                    <button id="add-ai-btn" class="btn btn-primary">Add AI Opponent</button>
+                    <button id="start-game-btn" class="btn btn-secondary" style="display: none;">Start Game</button>
+                </div>
+                
+                <button id="leave-room-btn" class="btn btn-secondary">Leave Room</button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <!-- Your Turn Indicator -->
+            <div id="your-turn-overlay" class="your-turn-overlay" style="display: none;">
+                Your Turn!
+            </div>
+            
+            <div class="game-container">
+                <!-- Game Header -->
+                <div class="game-header">
+                    <div class="scores">
+                        <div class="team-score">
+                            <span class="team-label">Team 1 (N/S)</span>
+                            <span class="score" id="team1-score">0</span>
+                        </div>
+                        <div class="trump-display">
+                            <div class="trump-card" id="trump-card">
+                                <span class="trump-label">Trump</span>
+                                <div class="card-display" id="trump-card-display">
+                                    <span class="card-rank"></span>
+                                    <span class="card-suit"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="team-score">
+                            <span class="team-label">Team 2 (E/W)</span>
+                            <span class="score" id="team2-score">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="game-status">
+                        <span id="phase-indicator">Dealing...</span>
+                        <span id="current-player"></span>
+                    </div>
+                </div>
+
+                <!-- Game Board -->
+                <div class="game-board">
+                    <!-- North Player -->
+                    <div class="player-area north" data-position="0">
+                        <div class="player-info">
+                            <span class="player-name"></span>
+                            <div class="dealer-indicator" style="display: none;">D</div>
+                        </div>
+                        <div class="player-hand">
+                            <div class="hand-cards"></div>
+                        </div>
+                    </div>
+
+                    <!-- West Player -->
+                    <div class="player-area west" data-position="3">
+                        <div class="player-info">
+                            <span class="player-name"></span>
+                            <div class="dealer-indicator" style="display: none;">D</div>
+                        </div>
+                        <div class="player-hand">
+                            <div class="hand-cards"></div>
+                        </div>
+                    </div>
+
+                    <!-- Center Trick Area -->
+                    <div class="trick-area">
+                        <div class="trick-cards">
+                            <div class="trick-card north" data-position="0"></div>
+                            <div class="trick-card east" data-position="1"></div>
+                            <div class="trick-card south" data-position="2"></div>
+                            <div class="trick-card west" data-position="3"></div>
+                        </div>
+                        <div class="trick-info">
+                            <span id="trick-count">Trick 1 of 5</span>
+                        </div>
+                    </div>
+
+                    <!-- East Player -->
+                    <div class="player-area east" data-position="1">
+                        <div class="player-info">
+                            <span class="player-name"></span>
+                            <div class="dealer-indicator" style="display: none;">D</div>
+                        </div>
+                        <div class="player-hand">
+                            <div class="hand-cards"></div>
+                        </div>
+                    </div>
+
+                    <!-- South Player (Current Player) -->
+                    <div class="player-area south current-player" data-position="2">
+                        <div class="player-info">
+                            <span class="player-name"></span>
+                            <div class="dealer-indicator" style="display: none;">D</div>
+                        </div>
+                        <div class="player-hand">
+                            <div class="hand-cards" id="current-player-hand"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Panel -->
+                <div class="action-panel">
+                    <!-- Trump Selection Actions -->
+                    <div id="trump-selection-actions" class="action-group" style="display: none;">
+                        <h3>Trump Selection</h3>
+                        <div class="trump-actions">
+                            <button id="order-up-btn" class="btn btn-primary">Order Up</button>
+                            <button id="pass-btn" class="btn btn-secondary">Pass</button>
+                        </div>
+                        <div class="suit-selection" style="display: none;">
+                            <button class="suit-btn" data-suit="hearts">♥</button>
+                            <button class="suit-btn" data-suit="diamonds">♦</button>
+                            <button class="suit-btn" data-suit="clubs">♣</button>
+                            <button class="suit-btn" data-suit="spades">♠</button>
+                        </div>
+                    </div>
+
+                    <!-- Going Alone Actions -->
+                    <div id="going-alone-actions" class="action-group" style="display: none;">
+                        <h3>Going Alone?</h3>
+                        <div class="alone-actions">
+                            <button id="go-alone-btn" class="btn btn-primary">Go Alone</button>
+                            <button id="with-partner-btn" class="btn btn-secondary">With Partner</button>
+                        </div>
+                    </div>
+
+                    <!-- Discard Actions -->
+                    <div id="discard-actions" class="action-group" style="display: none;">
+                        <h3>Select a card to discard</h3>
+                        <p>Click on a card in your hand to discard it.</p>
+                    </div>
+
+                    <!-- Game Actions -->
+                    <div id="game-actions" class="action-group">
+                        <button id="new-game-btn" class="btn btn-secondary" style="display: none;">New Game</button>
+                        <button id="leave-game-btn" class="btn btn-secondary">Leave Game</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Message Overlay -->
+        <div id="message-overlay" class="overlay" style="display: none;">
+            <div class="message-content">
+                <h3 id="message-title"></h3>
+                <p id="message-text"></p>
+                <button id="message-ok-btn" class="btn btn-primary">OK</button>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="overlay" style="display: none;">
+            <div class="loading-content">
+                <div class="spinner"></div>
+                <p>Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="game-client.js"></script>
+</body>
+</html>

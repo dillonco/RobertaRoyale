@@ -1,16 +1,16 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+import json
+import logging
+import random
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, Optional
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-import json
-import asyncio
-import uuid
-import random
-from typing import Dict, List, Set, Optional
-from datetime import datetime
-import logging
-from game_logic import EuchreGame, Suit, Card, Rank
+
 from ai_player import ai_manager
+from game_logic import EuchreGame, Suit, Card, Rank
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,8 +27,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="../static"), name="static")
+# Static files are served through frontend mount below
 
 # Game state storage
 class ConnectionManager:
@@ -158,6 +157,7 @@ async def websocket_endpoint(websocket: WebSocket, player_id: str):
     try:
         while True:
             data = await websocket.receive_text()
+            logger.info(f"Raw WebSocket data received from {player_id}: {data}")
             message = json.loads(data)
             await handle_message(player_id, message)
     except WebSocketDisconnect:
@@ -168,6 +168,7 @@ async def websocket_endpoint(websocket: WebSocket, player_id: str):
 
 async def handle_message(player_id: str, message: dict):
     message_type = message.get('type')
+    logger.info(f"Received message from player {player_id}: {message_type}")
     
     if message_type == 'create_room':
         player_name = message.get('player_name', f'Player {player_id[:6]}')
@@ -265,17 +266,16 @@ async def handle_message(player_id: str, message: dict):
     elif message_type == 'discard_card':
         # Handle dealer discarding after picking up trump card
         game = manager.get_player_game(player_id)
-        if game and game.trump_maker:
+        if game:
             card_data = message.get('card')
             if card_data:
                 suit = Suit(card_data['suit'])
                 rank = Rank(card_data['rank'])
                 card = Card(suit, rank)
                 
-                # Remove card from dealer's hand
-                dealer = game.players[player_id]
-                if card in dealer.hand:
-                    dealer.hand.remove(card)
+                # Use the game logic to handle discard
+                success = game.handle_dealer_discard(player_id, card)
+                if success:
                     await broadcast_game_state(game.room_code)
     
     elif message_type == 'leave_room':
@@ -326,24 +326,39 @@ async def handle_message(player_id: str, message: dict):
                         manager.player_names[ai_player_id] = ai.name
                         await broadcast_game_state(room_code)
     
-    elif message_type == 'start_game_with_ai':
-        # Force start game with current players (including AI)
+    elif message_type == 'start_game' or message_type == 'start_game_with_ai':
+        # Start game if exactly 4 players are present
+        logger.info(f"Received {message_type} message from player {player_id}")
         if player_id in manager.player_rooms:
             room_code = manager.player_rooms[player_id]
+            logger.info(f"Player {player_id} is in room {room_code}")
             if room_code in manager.games:
                 game = manager.games[room_code]
-                if len(game.players) >= 2:
-                    # Fill remaining slots with AI
+                logger.info(f"Game found for room {room_code}, current players: {len(game.players)}")
+                
+                # If start_game_with_ai and not enough players, fill with AI
+                if message_type == 'start_game_with_ai' and len(game.players) < 4:
                     while len(game.players) < 4:
                         ai_player_id = f"ai_{len(game.players)}_{room_code}"
                         ai = ai_manager.create_ai_player(ai_player_id)
                         game.add_player(ai_player_id, ai.name, is_ai=True)
                         manager.player_rooms[ai_player_id] = room_code
                         manager.player_names[ai_player_id] = ai.name
-                    
-                    # Force start the game
-                    game.start_game()
-                    await broadcast_game_state(room_code)
+                
+                # Only start if exactly 4 players
+                logger.info(f"Checking if can start game: {len(game.players)} players, game phase: {game.phase}")
+                if len(game.players) == 4:
+                    logger.info("Starting game...")
+                    success = game.start_game()
+                    logger.info(f"Game start success: {success}")
+                    if success:
+                        await broadcast_game_state(room_code)
+                else:
+                    logger.info(f"Cannot start game - need 4 players, have {len(game.players)}")
+            else:
+                logger.error(f"No game found for room {room_code}")
+        else:
+            logger.error(f"Player {player_id} not in any room")
 
 async def broadcast_game_state(room_code: str):
     """Broadcast current game state to all players in room"""
@@ -366,6 +381,8 @@ async def check_ai_turn(game: EuchreGame):
     
     if game.phase.value == 'trump_selection':
         current_player_id = game.player_order[game.trump_selection_player_index]
+    elif game.phase.value == 'dealer_discard':
+        current_player_id = game.player_order[game.dealer_index]
     elif game.phase.value == 'playing':
         current_player_id = game.player_order[game.current_player_index]
     
@@ -385,6 +402,8 @@ async def make_ai_decision(game: EuchreGame, player_id: str, ai):
     try:
         if game.phase.value == 'trump_selection':
             await handle_ai_trump_selection(game, player_id, ai)
+        elif game.phase.value == 'dealer_discard':
+            await handle_ai_dealer_discard(game, player_id, ai)
         elif game.phase.value == 'playing':
             await handle_ai_card_play(game, player_id, ai)
     except Exception as e:
@@ -417,19 +436,20 @@ async def handle_ai_trump_selection(game: EuchreGame, player_id: str, ai):
         if success:
             await broadcast_game_state(game.room_code)
 
+async def handle_ai_dealer_discard(game: EuchreGame, player_id: str, ai):
+    """Handle AI dealer discard decision"""
+    player = game.players[player_id]
+    
+    # AI chooses which card to discard
+    card_to_discard = ai.choose_discard(player.hand, game.trump_suit)
+    if card_to_discard in player.hand:
+        success = game.handle_dealer_discard(player_id, card_to_discard)
+        if success:
+            await broadcast_game_state(game.room_code)
+
 async def handle_ai_card_play(game: EuchreGame, player_id: str, ai):
     """Handle AI card playing decision"""
     player = game.players[player_id]
-    
-    # Check if dealer needs to discard
-    if (game.dealer_index == player.position and 
-        game.trump_suit and len(player.hand) > 5):
-        
-        card_to_discard = ai.choose_discard(player.hand, game.trump_suit)
-        if card_to_discard in player.hand:
-            player.hand.remove(card_to_discard)
-            await broadcast_game_state(game.room_code)
-        return
     
     # Normal card play
     if game.current_player_index == player.position:
@@ -450,8 +470,9 @@ def generate_room_code(length: int = 6) -> str:
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
 # Mount frontend files (must be last to avoid conflicts with API routes)
-app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")
+frontend_dir = Path(__file__).parent.parent / "frontend"
+app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

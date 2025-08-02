@@ -83,9 +83,8 @@
                 </div>
                 
                 <div class="ai-controls" id="ai-controls">
-                    <p>Need more players?</p>
-                    <button id="add-ai-btn" class="btn btn-primary">Add AI Opponent</button>
-                    <button id="start-game-btn" class="btn btn-secondary" style="display: none;">Start Game</button>
+                    <p id="room-status">Need more players?</p>
+                    <button id="add-ai-btn" class="btn btn-primary">Add AI Player</button>
                 </div>
                 
                 <button id="leave-room-btn" class="btn btn-secondary">Leave Room</button>
@@ -106,6 +105,10 @@
                         <div class="team-score">
                             <span class="team-label">Team 1 (N/S)</span>
                             <span class="score" id="team1-score">0</span>
+                            <div class="trick-counter">
+                                <span class="trick-label">Tricks:</span>
+                                <span class="trick-count" id="team1-tricks">0</span>
+                            </div>
                         </div>
                         <div class="trump-display">
                             <div class="trump-card" id="trump-card">
@@ -119,6 +122,10 @@
                         <div class="team-score">
                             <span class="team-label">Team 2 (E/W)</span>
                             <span class="score" id="team2-score">0</span>
+                            <div class="trick-counter">
+                                <span class="trick-label">Tricks:</span>
+                                <span class="trick-count" id="team2-tricks">0</span>
+                            </div>
                         </div>
                     </div>
                     
@@ -154,6 +161,22 @@
 
                     <!-- Center Trick Area -->
                     <div class="trick-area">
+                        <!-- Deck area for shuffling/dealing animation -->
+                        <div class="deck-area" id="deck-area" style="display: none;">
+                            <div class="deck-pile" id="deck-pile">
+                                <div class="deck-card"></div>
+                                <div class="deck-card"></div>
+                                <div class="deck-card"></div>
+                                <div class="deck-card"></div>
+                                <div class="deck-card"></div>
+                            </div>
+                            <div class="shuffle-animation" id="shuffle-animation">
+                                <div class="shuffle-card"></div>
+                                <div class="shuffle-card"></div>
+                                <div class="shuffle-card"></div>
+                            </div>
+                        </div>
+                        
                         <div class="trick-cards">
                             <div class="trick-card north" data-position="0"></div>
                             <div class="trick-card east" data-position="1"></div>
@@ -162,6 +185,7 @@
                         </div>
                         <div class="trick-info">
                             <span id="trick-count">Trick 1 of 5</span>
+                            <span id="tricks-remaining">4 remaining</span>
                         </div>
                     </div>
 
@@ -224,6 +248,17 @@
                     <div id="game-actions" class="action-group">
                         <button id="new-game-btn" class="btn btn-secondary" style="display: none;">New Game</button>
                         <button id="leave-game-btn" class="btn btn-secondary">Leave Game</button>
+                    </div>
+                </div>
+                
+                <!-- Game Event Log -->
+                <div class="event-log" id="event-log">
+                    <div class="event-log-header">
+                        <h3>Game Log</h3>
+                        <button id="toggle-log-btn" class="btn btn-small">Hide</button>
+                    </div>
+                    <div class="event-log-content" id="event-log-content">
+                        <!-- Events will be populated by JavaScript -->
                     </div>
                 </div>
             </div>

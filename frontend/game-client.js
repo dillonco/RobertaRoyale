@@ -6,6 +6,7 @@ class EuchreClient {
         this.currentScreen = 'main-menu';
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
+        this.dealingAnimationStarted = false;
         this.hasLeftRoom = this.getLeftRoomFlag(); // Load flag from localStorage
         
         this.init();
@@ -164,8 +165,10 @@ class EuchreClient {
             this.addAIOpponent();
         });
 
-        document.getElementById('start-game-btn').addEventListener('click', () => {
-            this.startGameWithAI();
+
+        // Event Log Events
+        document.getElementById('toggle-log-btn').addEventListener('click', () => {
+            this.toggleEventLog();
         });
 
         // Game Events
@@ -266,10 +269,13 @@ class EuchreClient {
     }
 
     sendMessage(message) {
+        console.log('Attempting to send message:', message);
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            console.log('WebSocket is open, sending message');
             this.ws.send(JSON.stringify(message));
+            console.log('Message sent successfully');
         } else {
-            console.error('WebSocket not connected');
+            console.error('WebSocket not connected. State:', this.ws ? this.ws.readyState : 'no ws');
             this.showMessage('Error', 'Not connected to server.');
         }
     }
@@ -394,6 +400,7 @@ class EuchreClient {
 
     updateAIControls() {
         const aiControls = document.getElementById('ai-controls');
+        const roomStatus = document.getElementById('room-status');
         const addAIBtn = document.getElementById('add-ai-btn');
         const startGameBtn = document.getElementById('start-game-btn');
         
@@ -403,19 +410,36 @@ class EuchreClient {
 
         const playerCount = this.gameState.players.length;
         const canAddAI = playerCount < 4;
-        const canStartGame = playerCount >= 2;
+        const canStartGame = playerCount === 4 && (this.gameState.phase === 'waiting_for_players' || this.gameState.phase === 'game_complete');
+        console.log('Update AI Controls - Player count:', playerCount, 'Phase:', this.gameState.phase, 'Can start:', canStartGame);
+
+        // Update room status text
+        if (playerCount === 4) {
+            roomStatus.textContent = 'Ready to start!';
+        } else if (playerCount >= 2) {
+            roomStatus.textContent = `Need ${4 - playerCount} more player${4 - playerCount === 1 ? '' : 's'}`;
+        } else {
+            roomStatus.textContent = `Need ${4 - playerCount} more players`;
+        }
 
         // Show/hide AI controls based on player count
-        if (playerCount >= 4) {
-            aiControls.style.display = 'none';
-        } else {
-            aiControls.style.display = 'block';
-            addAIBtn.style.display = canAddAI ? 'inline-block' : 'none';
-            startGameBtn.style.display = canStartGame ? 'inline-block' : 'none';
-        }
+        aiControls.style.display = 'block';
+        addAIBtn.style.display = canAddAI ? 'inline-block' : 'none';
+        startGameBtn.style.display = canStartGame ? 'inline-block' : 'none';
     }
 
     updateGameScreen() {
+        // Reset dealing animation flag when not in dealing phase
+        if (this.gameState.phase !== 'dealing') {
+            this.dealingAnimationStarted = false;
+        }
+        
+        // Handle dealing phase with shuffling animation
+        if (this.gameState.phase === 'dealing' && !this.dealingAnimationStarted) {
+            this.startShufflingAndDealingAnimation();
+            return; // Exit early - the animation will call updateGameScreen again when done
+        }
+        
         this.updateScores();
         this.updateTrumpDisplay();
         this.updatePlayerAreas();
@@ -423,12 +447,23 @@ class EuchreClient {
         this.updateActionPanel();
         this.updateGameStatus();
         this.updateYourTurnIndicator();
+        this.updateEventLog();
     }
 
     updateScores() {
         if (this.gameState.team_scores) {
             document.getElementById('team1-score').textContent = this.gameState.team_scores[0] || 0;
             document.getElementById('team2-score').textContent = this.gameState.team_scores[1] || 0;
+        }
+        
+        // Update trick counters
+        if (this.gameState.team_tricks) {
+            document.getElementById('team1-tricks').textContent = this.gameState.team_tricks[0] || 0;
+            document.getElementById('team2-tricks').textContent = this.gameState.team_tricks[1] || 0;
+        } else {
+            // Reset trick counters when not in playing phase
+            document.getElementById('team1-tricks').textContent = '0';
+            document.getElementById('team2-tricks').textContent = '0';
         }
     }
 
@@ -642,7 +677,26 @@ class EuchreClient {
 
         // Update trick count
         const trickCount = this.gameState.completed_tricks_count || 0;
-        document.getElementById('trick-count').textContent = `Trick ${trickCount + 1} of 5`;
+        
+        if (this.gameState.phase === 'playing' || this.gameState.phase === 'round_complete') {
+            const currentTrick = trickCount + 1;
+            const remainingTricks = 5 - currentTrick;
+            
+            document.getElementById('trick-count').textContent = `Trick ${currentTrick} of 5`;
+            
+            if (remainingTricks > 0) {
+                document.getElementById('tricks-remaining').textContent = `${remainingTricks} remaining`;
+            } else {
+                document.getElementById('tricks-remaining').textContent = 'Final trick';
+            }
+        } else {
+            // During dealing or trump selection
+            document.getElementById('trick-count').textContent = 'Get ready...';
+            document.getElementById('tricks-remaining').textContent = '5 tricks to play';
+        }
+        
+        // Update leader indicator
+        this.updateLeaderIndicator();
     }
 
     updateActionPanel() {
@@ -818,7 +872,6 @@ class EuchreClient {
             cardElement.appendChild(suitSpan);
         } else {
             cardElement.classList.add('card-back');
-            cardElement.textContent = 'EUCHRE';
         }
         
         return cardElement;
@@ -827,7 +880,6 @@ class EuchreClient {
     createCardBackElement() {
         const cardElement = document.createElement('div');
         cardElement.className = 'card card-back';
-        cardElement.textContent = 'EUCHRE';
         return cardElement;
     }
 
@@ -893,6 +945,7 @@ class EuchreClient {
         
         this.showScreen('main-menu');
         this.gameState = null;
+        this.dealingAnimationStarted = false; // Reset dealing animation flag
     }
 
     sendTrumpSelection(action, suit = null) {
@@ -939,6 +992,26 @@ class EuchreClient {
     addAIOpponent() {
         this.sendMessage({
             type: 'add_ai_player'
+        });
+    }
+
+    startGame() {
+        // Only start if we have exactly 4 players
+        console.log('Start Game button clicked');
+        console.log('Current game state:', this.gameState);
+        
+        if (!this.gameState || !this.gameState.players) {
+            console.error('No game state or players available');
+            return;
+        }
+        
+        const playerCount = this.gameState.players.length;
+        console.log('Player count:', playerCount);
+        console.log('Game phase:', this.gameState.phase);
+        
+        console.log('Sending start_game message regardless of current state');
+        this.sendMessage({
+            type: 'start_game'
         });
     }
 
@@ -1021,6 +1094,202 @@ class EuchreClient {
         setTimeout(() => {
             notification.classList.remove('show');
         }, 3000);
+    }
+
+    startShufflingAndDealingAnimation() {
+        this.dealingAnimationStarted = true;
+        
+        // Show deck area and hide trick cards
+        const deckArea = document.getElementById('deck-area');
+        const trickCards = document.querySelector('.trick-cards');
+        
+        deckArea.style.display = 'block';
+        trickCards.style.opacity = '0.3';
+        
+        // Start shuffling animation
+        deckArea.classList.add('shuffling');
+        
+        // After shuffling, start dealing cards
+        setTimeout(() => {
+            deckArea.classList.remove('shuffling');
+            this.startDealingSequence();
+        }, 2000); // Shuffling duration
+    }
+
+    startDealingSequence() {
+        const playerPositions = [0, 1, 2, 3]; // North, East, South, West
+        let cardIndex = 0;
+        
+        // Deal 5 cards to each player (round-robin style)
+        const dealRound = (roundNumber) => {
+            if (roundNumber >= 5) {
+                // Finished dealing all cards, now show trump card
+                setTimeout(() => {
+                    this.showTrumpCardAnimation();
+                }, 500);
+                return;
+            }
+            
+            // Deal one card to each player in sequence
+            let playerIndex = 0;
+            const dealToNextPlayer = () => {
+                if (playerIndex >= 4) {
+                    // Round complete, start next round
+                    setTimeout(() => dealRound(roundNumber + 1), 300);
+                    return;
+                }
+                
+                this.dealCardToPlayer(playerPositions[playerIndex], cardIndex);
+                cardIndex++;
+                playerIndex++;
+                
+                // Deal to next player after delay
+                setTimeout(dealToNextPlayer, 150);
+            };
+            
+            dealToNextPlayer();
+        };
+        
+        // Start dealing
+        dealRound(0);
+    }
+
+    dealCardToPlayer(position, cardIndex) {
+        // Create a card element that animates from deck to player
+        const deckArea = document.getElementById('deck-area');
+        const dealingCard = document.createElement('div');
+        dealingCard.className = 'deck-card dealing-card';
+        dealingCard.style.position = 'absolute';
+        dealingCard.style.zIndex = '30';
+        
+        deckArea.appendChild(dealingCard);
+        
+        // Calculate target position
+        const playerArea = document.querySelector(`[data-position="${position}"]`);
+        const deckRect = deckArea.getBoundingClientRect();
+        const playerRect = playerArea.getBoundingClientRect();
+        
+        const deltaX = playerRect.left + playerRect.width/2 - deckRect.left - deckRect.width/2;
+        const deltaY = playerRect.top + playerRect.height/2 - deckRect.top - deckRect.height/2;
+        
+        // Set CSS custom property for animation target
+        dealingCard.style.setProperty('--deal-target-transform', 
+            `translate(${deltaX}px, ${deltaY}px) rotate(${Math.random() * 20 - 10}deg) scale(0.8)`);
+        
+        // Start animation
+        dealingCard.style.animation = 'dealFromDeck 0.6s ease-out forwards';
+        
+        // Remove the dealing card after animation
+        setTimeout(() => {
+            dealingCard.remove();
+        }, 600);
+    }
+
+    showTrumpCardAnimation() {
+        // Hide deck area and show trump card with flip animation
+        const deckArea = document.getElementById('deck-area');
+        const trickCards = document.querySelector('.trick-cards');
+        const trumpCard = document.getElementById('trump-card');
+        
+        deckArea.style.display = 'none';
+        trickCards.style.opacity = '1';
+        
+        // Show trump card with flip animation
+        if (this.gameState.trump_card) {
+            trumpCard.style.display = 'block';
+            trumpCard.style.animation = 'trumpCardFlip 1s ease-out forwards';
+        }
+        
+        // Finish dealing animation sequence
+        setTimeout(() => {
+            this.dealingAnimationStarted = false;
+            this.updateGameScreen(); // Update the full game display
+        }, 1000);
+    }
+
+    toggleEventLog() {
+        const eventLog = document.getElementById('event-log');
+        const toggleBtn = document.getElementById('toggle-log-btn');
+        
+        eventLog.classList.toggle('collapsed');
+        
+        if (eventLog.classList.contains('collapsed')) {
+            toggleBtn.textContent = 'Show';
+        } else {
+            toggleBtn.textContent = 'Hide';
+        }
+    }
+
+    updateEventLog() {
+        if (!this.gameState || !this.gameState.events) return;
+        
+        const eventLogContent = document.getElementById('event-log-content');
+        const events = this.gameState.events;
+        
+        // Clear existing events
+        eventLogContent.innerHTML = '';
+        
+        // Add events
+        events.forEach(event => {
+            const eventItem = document.createElement('div');
+            eventItem.className = `event-item ${event.event_type}-event`;
+            
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'event-time';
+            timeSpan.textContent = this.formatEventTime(event.timestamp);
+            
+            const textSpan = document.createElement('span');
+            textSpan.className = 'event-text';
+            textSpan.textContent = event.message;
+            
+            eventItem.appendChild(timeSpan);
+            eventItem.appendChild(textSpan);
+            eventLogContent.appendChild(eventItem);
+        });
+        
+        // Auto-scroll to bottom
+        eventLogContent.scrollTop = eventLogContent.scrollHeight;
+    }
+
+    formatEventTime(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    }
+
+    updateLeaderIndicator() {
+        // Remove existing leader indicators
+        const existingIndicators = document.querySelectorAll('.leader-indicator');
+        existingIndicators.forEach(indicator => indicator.remove());
+        
+        // Clear leader classes
+        const trickCards = document.querySelectorAll('.trick-card');
+        trickCards.forEach(card => card.classList.remove('is-leader'));
+        
+        // Add leader indicator if there's a current trick with a leader
+        if (this.gameState.current_trick && this.gameState.current_trick.leader) {
+            const leaderPlayer = this.gameState.players.find(p => p.id === this.gameState.current_trick.leader);
+            
+            if (leaderPlayer) {
+                const leaderTrickCard = document.querySelector(`.trick-card[data-position="${leaderPlayer.position}"]`);
+                
+                if (leaderTrickCard) {
+                    // Add leader class to trick card
+                    leaderTrickCard.classList.add('is-leader');
+                    
+                    // Create leader indicator element
+                    const indicator = document.createElement('div');
+                    indicator.className = 'leader-indicator';
+                    indicator.innerHTML = '👑';
+                    indicator.title = `${leaderPlayer.name} led this trick`;
+                    
+                    leaderTrickCard.appendChild(indicator);
+                }
+            }
+        }
     }
 }
 

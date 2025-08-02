@@ -3,6 +3,7 @@ from typing import List, Dict, Optional, Tuple
 import random
 from dataclasses import dataclass, field
 from copy import deepcopy
+from datetime import datetime
 
 class Suit(Enum):
     HEARTS = "hearts"
@@ -37,6 +38,7 @@ class GamePhase(Enum):
     WAITING_FOR_PLAYERS = "waiting_for_players"
     DEALING = "dealing"
     TRUMP_SELECTION = "trump_selection"
+    DEALER_DISCARD = "dealer_discard"
     PLAYING = "playing"
     ROUND_COMPLETE = "round_complete"
     GAME_COMPLETE = "game_complete"
@@ -49,6 +51,13 @@ class Player:
     position: int = 0  # 0=North, 1=East, 2=South, 3=West
     is_connected: bool = True
     is_ai: bool = False
+
+@dataclass
+class GameEvent:
+    timestamp: datetime
+    event_type: str  # 'trump', 'trick', 'round', 'player', 'game'
+    message: str
+    player_id: Optional[str] = None
 
 @dataclass
 class Trick:
@@ -76,6 +85,9 @@ class EuchreGame:
         self.trump_maker: Optional[str] = None
         self.going_alone: Optional[str] = None
         
+        # Event logging
+        self.events: List[GameEvent] = []
+        
         # Scoring
         self.team_scores = {0: 0, 1: 0}  # Team 0: players 0&2, Team 1: players 1&3
         self.round_points = 0
@@ -92,16 +104,26 @@ class EuchreGame:
         self.players[player_id] = Player(id=player_id, name=name, position=position, is_ai=is_ai)
         self.player_order.append(player_id)
         
-        if len(self.players) == 4:
-            self.start_game()
-        
+        # Don't auto-start game - wait for explicit start command
         return True
     
     def start_game(self):
         if len(self.players) != 4:
             return False
         
+        # Reset game state for new game
+        if self.phase == GamePhase.GAME_COMPLETE:
+            self.team_scores = {0: 0, 1: 0}
+            self.completed_tricks = []
+            self.trump_suit = None
+            self.trump_card = None
+            self.trump_maker = None
+            self.going_alone = None
+            self.dealer_index = 0
+            self.current_player_index = 0
+        
         self.phase = GamePhase.DEALING
+        self.add_event('game', 'Game started! Cards are being dealt.')
         self.deal_cards()
         return True
     
@@ -136,6 +158,11 @@ class EuchreGame:
         self.phase = GamePhase.TRUMP_SELECTION
         self.trump_selection_round = 1
         self.trump_selection_player_index = (self.dealer_index + 1) % 4
+        
+        # Log trump selection start
+        dealer_name = self.players[self.player_order[self.dealer_index]].name
+        trump_card_str = f"{self.trump_card.rank.name.title()} of {self.trump_card.suit.value.title()}"
+        self.add_event('trump', f"{dealer_name} is dealing. Trump card: {trump_card_str}")
     
     def get_card_value(self, card: Card, trump_suit: Suit, leading_suit: Suit) -> int:
         """Get the value of a card for comparison purposes"""
@@ -231,6 +258,11 @@ class EuchreGame:
         if len(self.current_trick.cards) == 0:
             self.current_trick.leader = player_id
         
+        # Log card play
+        player_name = player.name
+        card_str = f"{card.rank.name.title()} of {card.suit.value.title()}"
+        self.add_event('player', f"{player_name} played {card_str}", player_id)
+        
         self.current_trick.cards.append((player_id, card))
         
         # If trick is complete, determine winner
@@ -260,6 +292,13 @@ class EuchreGame:
         
         winner_id = self.current_trick.cards[winner_idx][0]
         self.current_trick.winner = winner_id
+        
+        # Log trick completion
+        winner_name = self.players[winner_id].name
+        winning_card = self.current_trick.cards[winner_idx][1]
+        card_str = f"{winning_card.rank.name.title()} of {winning_card.suit.value.title()}"
+        trick_num = len(self.completed_tricks) + 1
+        self.add_event('trick', f"Trick {trick_num}: {winner_name} wins with {card_str}", winner_id)
         
         self.completed_tricks.append(deepcopy(self.current_trick))
         self.current_trick = Trick()
@@ -301,9 +340,31 @@ class EuchreGame:
         
         self.team_scores[winning_team] += points
         
+        # Log round results
+        team_names = ["Team 1 (N/S)", "Team 2 (E/W)"]
+        winner_team_name = team_names[winning_team]
+        loser_team = 1 - winning_team
+        
+        if winning_team == trump_making_team:
+            if tricks_won == 5:
+                if self.going_alone:
+                    self.add_event('round', f"{winner_team_name} swept all tricks going alone! +4 points")
+                else:
+                    self.add_event('round', f"{winner_team_name} swept all tricks! +2 points")
+            else:
+                self.add_event('round', f"{winner_team_name} won {tricks_won} tricks. +1 point")
+        else:
+            trump_maker_name = self.players[self.trump_maker].name
+            self.add_event('round', f"{winner_team_name} euchred {trump_maker_name}! +2 points")
+        
+        self.add_event('round', f"Score: {team_names[0]} {self.team_scores[0]} - {team_names[1]} {self.team_scores[1]}")
+        
         # Check for game end
         if max(self.team_scores.values()) >= 10:
             self.phase = GamePhase.GAME_COMPLETE
+            winning_score = max(self.team_scores.values())
+            final_winner = 0 if self.team_scores[0] == winning_score else 1
+            self.add_event('game', f"🎉 {team_names[final_winner]} wins the game!")
         else:
             self.start_next_round()
     
@@ -336,7 +397,16 @@ class EuchreGame:
             # Dealer picks up the trump card
             dealer = self.players[self.player_order[self.dealer_index]]
             dealer.hand.append(self.trump_card)
-            self.start_playing_phase()
+            
+            # Log trump selection
+            player_name = self.players[player_id].name
+            suit_name = self.trump_suit.value.title()
+            self.add_event('trump', f"{player_name} ordered up {suit_name} as trump!", player_id)
+            
+            # Go to dealer discard phase instead of playing
+            self.phase = GamePhase.DEALER_DISCARD
+            dealer_name = dealer.name
+            self.add_event('trump', f"{dealer_name} must discard a card", self.player_order[self.dealer_index])
             return True
         
         elif action == "name_trump" and self.trump_selection_round == 2 and suit:
@@ -344,10 +414,20 @@ class EuchreGame:
             if suit != self.trump_card.suit:
                 self.trump_suit = suit
                 self.trump_maker = player_id
+                
+                # Log trump selection
+                player_name = self.players[player_id].name
+                suit_name = suit.value.title()
+                self.add_event('trump', f"{player_name} called {suit_name} as trump!", player_id)
+                
                 self.start_playing_phase()
                 return True
         
         elif action == "pass":
+            # Log pass
+            player_name = self.players[player_id].name
+            self.add_event('trump', f"{player_name} passed", player_id)
+            
             self.trump_selection_player_index = (self.trump_selection_player_index + 1) % 4
             
             # If all players pass in round 1, go to round 2
@@ -371,10 +451,62 @@ class EuchreGame:
             return True
         return False
     
+    def handle_dealer_discard(self, player_id: str, card: Card) -> bool:
+        """Handle dealer discarding a card after trump is ordered up"""
+        if self.phase != GamePhase.DEALER_DISCARD:
+            return False
+        
+        # Only the dealer can discard
+        dealer_id = self.player_order[self.dealer_index]
+        if player_id != dealer_id:
+            return False
+        
+        dealer = self.players[dealer_id]
+        if card not in dealer.hand:
+            return False
+        
+        # Remove the discarded card
+        dealer.hand.remove(card)
+        
+        # Log the discard
+        dealer_name = dealer.name
+        card_str = f"{card.rank.name.title()} of {card.suit.value.title()}"
+        self.add_event('trump', f"{dealer_name} discarded {card_str}")
+        
+        # Now start the playing phase
+        self.start_playing_phase()
+        return True
+    
     def start_playing_phase(self):
         """Start the playing phase"""
         self.phase = GamePhase.PLAYING
         self.current_player_index = (self.dealer_index + 1) % 4
+    
+    def get_current_team_tricks(self) -> Dict[int, int]:
+        """Calculate how many tricks each team has won in the current round"""
+        team_tricks = {0: 0, 1: 0}
+        
+        for trick in self.completed_tricks:
+            if trick.winner:
+                winner_position = self.players[trick.winner].position
+                team = winner_position % 2  # Team 0: positions 0,2 (N,S), Team 1: positions 1,3 (E,W)
+                team_tricks[team] += 1
+                
+        return team_tricks
+    
+    def add_event(self, event_type: str, message: str, player_id: Optional[str] = None):
+        """Add an event to the game log"""
+        event = GameEvent(
+            timestamp=datetime.now(),
+            event_type=event_type,
+            message=message,
+            player_id=player_id
+        )
+        self.events.append(event)
+        
+        # Keep only last 50 events to prevent memory issues
+        if len(self.events) > 50:
+            self.events = self.events[-50:]
     
     def get_game_state(self, player_id: str) -> Dict:
         """Get the current game state for a specific player"""
@@ -405,11 +537,20 @@ class EuchreGame:
                 'leader': self.current_trick.leader
             },
             'completed_tricks_count': len(self.completed_tricks),
+            'team_tricks': self.get_current_team_tricks(),
             'team_scores': self.team_scores,
             'dealer_index': self.dealer_index,
             'current_player_index': self.current_player_index,
             'trump_selection_player_index': self.trump_selection_player_index,
             'trump_selection_round': self.trump_selection_round,
             'trump_maker': self.trump_maker,
-            'going_alone': self.going_alone
+            'going_alone': self.going_alone,
+            'events': [
+                {
+                    'timestamp': event.timestamp.isoformat(),
+                    'event_type': event.event_type,
+                    'message': event.message,
+                    'player_id': event.player_id
+                } for event in self.events[-20:]  # Send last 20 events
+            ]
         }

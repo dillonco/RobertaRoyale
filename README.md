@@ -51,6 +51,7 @@ RobertaRoyale/
 
 ### Prerequisites
 - Python 3.8 or higher
+- [UV package manager](https://docs.astral.sh/uv/) (recommended) or pip
 - A modern web browser
 
 ### Installation Steps
@@ -61,16 +62,30 @@ RobertaRoyale/
    cd RobertaRoyale
    ```
 
-2. **Set up the Python backend**
+2. **Install UV (if not already installed)**
    ```bash
-   cd backend
-   pip install -e .
+   # On macOS/Linux
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   
+   # On Windows
+   powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+   
+   # Or via pip
+   pip install uv
    ```
 
-3. **Install dependencies manually if needed**
+3. **Set up the Python backend with UV**
    ```bash
-   pip install fastapi uvicorn websockets python-multipart
+   cd backend
+   uv sync
    ```
+
+#### Alternative: Using pip
+If you prefer to use pip instead of UV:
+```bash
+cd backend
+pip install -e .
+```
 
 ## Running the Application
 
@@ -78,16 +93,27 @@ RobertaRoyale/
 
 From the `backend` directory:
 
+#### Using UV (Recommended)
+```bash
+# For development (with auto-reload)
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# For production
+uv run uvicorn main:app --host 0.0.0.0 --port 8000
+
+# Or run the Python script directly
+uv run python main.py
+```
+
+#### Using pip/system Python
 ```bash
 # For development (with auto-reload)
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 # For production
 uvicorn main:app --host 0.0.0.0 --port 8000
-```
 
-Alternatively, you can use the Python script directly:
-```bash
+# Or run the Python script directly
 python main.py
 ```
 
@@ -163,6 +189,13 @@ python main.py
 ### Running in Development Mode
 
 The server includes auto-reload for development:
+
+#### With UV
+```bash
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### With pip/system Python
 ```bash
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```

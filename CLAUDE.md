@@ -34,9 +34,9 @@ pip install -e .
 - **`pyproject.toml`**: Python dependencies (FastAPI, uvicorn, websockets)
 
 ### Frontend Structure (`frontend/`)
-- **`index.html`**: Single-page application with all game screens
-- **`game-client.js`**: WebSocket client, game state management, and UI interactions
-- **`styles.css`**: Modern CSS with animations and responsive design
+- **`index.html`**: Single-page application with responsive game screens and dynamic layouts
+- **`game-client.js`**: WebSocket client, game state management, UI interactions, and advanced game mechanics
+- **`styles.css`**: Modern responsive CSS with animations, visual feedback, and adaptive layouts
 
 ### Key Technical Patterns
 
@@ -73,8 +73,41 @@ pip install -e .
 - WebSocket connections managed through ConnectionManager class
 - Game logic separated from server logic for clean architecture
 - AI players seamlessly integrated into multiplayer flow
-- Responsive design works on desktop and tablet
+- Fully responsive design with CSS clamp() functions and dynamic viewport units
 - No registration system - jump-in gameplay
+- Advanced UI features: playable card indicators, trick completion displays, winner highlighting
+- Dynamic player positioning system (current player always at bottom)
+- Real-time visual feedback for game actions and card playability
+
+## Recent UI/UX Improvements
+
+### Responsive Design Overhaul
+- Comprehensive responsive design using CSS clamp() functions for scaling
+- Dynamic viewport units (100dvh) for optimal screen utilization
+- Flexible layouts that adapt to different screen sizes without scrolling
+- Enhanced card sizing and spacing for better visual hierarchy
+
+### Enhanced Game Experience
+- **Dynamic Player Positioning**: Current player's cards always appear at bottom with larger size
+- **Playable Card Indicators**: Green glow and upward movement for selectable cards
+- **Complete Trick Display**: All 4 cards visible for 5 seconds after trick completion
+- **Winner Highlighting**: Current winning card highlighted with golden glow during active tricks
+- **Streamlined Interface**: Removed action panel for cleaner gameplay experience
+- **Game Log Integration**: Real-time game events replace waiting messages
+
+### Advanced Card Game Features
+- Sophisticated card playability logic following Euchre rules (suit following, trump handling)
+- Dealer discard functionality with proper phase handling
+- Trick completion system with local data storage to prevent server clearing issues
+- Visual feedback for all game actions and state changes
+- Automatic positioning system that adapts to different player perspectives
+
+### Technical Implementation Details
+- **CSS Animations**: Smooth transitions for card movements and state changes
+- **JavaScript State Management**: Local storage of trick data for enhanced display control
+- **Dynamic CSS Classes**: Real-time class assignment based on game state
+- **Responsive Breakpoints**: Optimized layouts for desktop, tablet, and mobile
+- **Performance Optimizations**: Efficient DOM manipulation and event handling
 
 ## File Dependencies
 

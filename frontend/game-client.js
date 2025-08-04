@@ -165,46 +165,16 @@ class EuchreClient {
             this.addAIOpponent();
         });
 
+        document.getElementById('start-game-btn').addEventListener('click', () => {
+            this.startGame();
+        });
+
 
         // Event Log Events
         document.getElementById('toggle-log-btn').addEventListener('click', () => {
             this.toggleEventLog();
         });
 
-        // Game Events
-        document.getElementById('leave-game-btn').addEventListener('click', () => {
-            this.leaveRoom();
-        });
-
-        document.getElementById('new-game-btn').addEventListener('click', () => {
-            this.startNewGame();
-        });
-
-        // Trump Selection Events
-        document.getElementById('order-up-btn').addEventListener('click', () => {
-            this.sendTrumpSelection('order_up');
-        });
-
-        document.getElementById('pass-btn').addEventListener('click', () => {
-            this.sendTrumpSelection('pass');
-        });
-
-        // Suit Selection Events
-        document.querySelectorAll('.suit-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const suit = btn.dataset.suit;
-                this.sendTrumpSelection('name_trump', suit);
-            });
-        });
-
-        // Going Alone Events
-        document.getElementById('go-alone-btn').addEventListener('click', () => {
-            this.sendGoingAlone(true);
-        });
-
-        document.getElementById('with-partner-btn').addEventListener('click', () => {
-            this.sendGoingAlone(false);
-        });
 
         // Message Overlay Events
         document.getElementById('message-ok-btn').addEventListener('click', () => {
@@ -497,6 +467,9 @@ class EuchreClient {
     updatePlayerAreas() {
         const playerAreas = document.querySelectorAll('.player-area');
         
+        // First, rearrange the grid layout based on current player position
+        this.arrangePlayerPositions();
+        
         playerAreas.forEach(area => {
             const position = parseInt(area.dataset.position);
             const player = this.gameState.players.find(p => p.position === position);
@@ -528,6 +501,43 @@ class EuchreClient {
         });
     }
 
+    arrangePlayerPositions() {
+        if (!this.gameState || this.gameState.player_position === undefined) return;
+        
+        const playerAreas = document.querySelectorAll('.player-area');
+        const trickCards = document.querySelectorAll('.trick-card');
+        const currentPlayerPosition = this.gameState.player_position;
+        
+        // Remove existing position classes from player areas
+        playerAreas.forEach(area => {
+            area.classList.remove('player-bottom', 'player-top', 'player-left', 'player-right');
+        });
+        
+        // Remove existing position classes from trick cards
+        trickCards.forEach(card => {
+            card.classList.remove('trick-bottom', 'trick-top', 'trick-left', 'trick-right');
+        });
+        
+        // Calculate relative positions (current player at bottom)
+        const positions = ['bottom', 'right', 'top', 'left'];
+        
+        // Update player areas
+        playerAreas.forEach(area => {
+            const position = parseInt(area.dataset.position);
+            // Calculate relative position (current player = 0, clockwise)
+            const relativePosition = (position - currentPlayerPosition + 4) % 4;
+            area.classList.add(`player-${positions[relativePosition]}`);
+        });
+        
+        // Update trick cards
+        trickCards.forEach(card => {
+            const position = parseInt(card.dataset.position);
+            // Calculate relative position (current player = 0, clockwise)
+            const relativePosition = (position - currentPlayerPosition + 4) % 4;
+            card.classList.add(`trick-${positions[relativePosition]}`);
+        });
+    }
+
     updatePlayerHand(area, player, position) {
         const handContainer = area.querySelector('.hand-cards');
         const currentCards = Array.from(handContainer.children);
@@ -542,6 +552,11 @@ class EuchreClient {
             // Animate new cards in
             newCards.forEach(({ card, element }, index) => {
                 element.addEventListener('click', () => this.handleCardClick(card, element));
+                
+                // Check if this card is playable and add visual indicator
+                if (this.isCardPlayable(card)) {
+                    element.classList.add('playable');
+                }
                 
                 // Check if this is a new card (not in current hand)
                 const isNewCard = !currentCards.some(existing => 
@@ -594,12 +609,86 @@ class EuchreClient {
     updateTrickArea() {
         const trickCards = document.querySelectorAll('.trick-card');
         
+        // If we're currently showing a completed trick, don't update until timeout is done
+        if (this.displayingCompleteTrick) {
+            return;
+        }
+        
+        // Clear any existing trick complete timeout when starting a new trick
+        if (this.trickCompleteTimeout && (!this.gameState.current_trick || this.gameState.current_trick.cards.length === 0)) {
+            clearTimeout(this.trickCompleteTimeout);
+            this.trickCompleteTimeout = null;
+        }
+        
         // Store previous trick state for animation comparison
         const previousTrickState = this.previousTrickState || [];
         this.previousTrickState = this.gameState.current_trick ? [...this.gameState.current_trick.cards] : [];
 
-        // Clear trick cards that are no longer present
-        trickCards.forEach((trickCard, index) => {
+        // Check if trick just completed (4 cards and has winner)
+        const trickJustCompleted = this.gameState.current_trick && 
+                                  this.gameState.current_trick.cards.length === 4 &&
+                                  this.gameState.current_trick.winner &&
+                                  !this.displayingCompleteTrick;
+
+        if (trickJustCompleted) {
+            // Store the complete trick data locally
+            this.completeTrickData = {
+                cards: [...this.gameState.current_trick.cards],
+                winner: this.gameState.current_trick.winner
+            };
+            this.displayingCompleteTrick = true;
+            
+            // Display all 4 cards
+            this.showCompleteTrick();
+            return;
+        }
+
+        // Normal trick updating (when not complete)
+        this.updateActiveTrick();
+    }
+
+    showCompleteTrick() {
+        const trickCards = document.querySelectorAll('.trick-card');
+        
+        // Clear all trick cards first
+        trickCards.forEach(trickCard => {
+            trickCard.innerHTML = '';
+            trickCard.classList.remove('has-card', 'winner');
+        });
+
+        // Show all 4 cards from stored data
+        this.completeTrickData.cards.forEach(([playerId, card]) => {
+            const player = this.gameState.players.find(p => p.id === playerId);
+            if (player) {
+                const trickCard = document.querySelector(`.trick-card[data-position="${player.position}"]`);
+                if (trickCard) {
+                    const cardElement = this.createCardElement(card, true);
+                    cardElement.style.width = '50px';
+                    cardElement.style.height = '70px';
+                    
+                    trickCard.appendChild(cardElement);
+                    trickCard.classList.add('has-card');
+                    
+                    // Highlight winner's card
+                    if (playerId === this.completeTrickData.winner) {
+                        trickCard.classList.add('winner');
+                    }
+                }
+            }
+        });
+
+        // Wait 5 seconds then clean up
+        this.trickCompleteTimeout = setTimeout(() => {
+            this.cleanupCompleteTrick();
+        }, 5000);
+    }
+
+    updateActiveTrick() {
+        const trickCards = document.querySelectorAll('.trick-card');
+        const previousTrickState = this.previousTrickState || [];
+
+        // Clear cards that are no longer present
+        trickCards.forEach((trickCard) => {
             const position = parseInt(trickCard.dataset.position);
             const hasCardNow = this.gameState.current_trick && 
                 this.gameState.current_trick.cards.some(([playerId]) => {
@@ -608,27 +697,8 @@ class EuchreClient {
                 });
 
             if (!hasCardNow) {
-                // Check if this card was just collected
-                const wasPresent = previousTrickState.some(([playerId]) => {
-                    const player = this.gameState.players.find(p => p.id === playerId);
-                    return player && player.position === position;
-                });
-
-                if (wasPresent) {
-                    // Animate card collection
-                    const cards = trickCard.querySelectorAll('.card');
-                    cards.forEach(card => {
-                        card.classList.add('collecting');
-                    });
-
-                    setTimeout(() => {
-                        trickCard.innerHTML = '';
-                        trickCard.classList.remove('has-card');
-                    }, 800);
-                } else {
-                    trickCard.innerHTML = '';
-                    trickCard.classList.remove('has-card');
-                }
+                trickCard.innerHTML = '';
+                trickCard.classList.remove('has-card', 'winner');
             }
         });
 
@@ -656,47 +726,135 @@ class EuchreClient {
             });
         }
 
-        // Highlight winner's card if trick is complete
-        if (this.gameState.current_trick && 
-            this.gameState.current_trick.cards.length === 4 &&
-            this.lastTrickWinner !== this.gameState.current_trick.winner) {
+        // Highlight current winning card (for incomplete tricks)
+        this.highlightCurrentWinner();
+    }
+
+    highlightCurrentWinner() {
+        if (!this.gameState.current_trick || this.gameState.current_trick.cards.length === 0) {
+            return;
+        }
+
+        // Remove previous winner highlighting
+        document.querySelectorAll('.trick-card').forEach(card => {
+            card.classList.remove('current-winner');
+        });
+
+        // Simple logic to determine current winner (this should match server logic)
+        const cards = this.gameState.current_trick.cards;
+        if (cards.length > 0) {
+            // For now, just highlight the highest card of the led suit (simplified)
+            const leadCard = cards[0][1];
+            const leadSuit = leadCard.suit;
+            const trumpSuit = this.gameState.trump_suit;
             
-            this.lastTrickWinner = this.gameState.current_trick.winner;
-            const winnerPlayer = this.gameState.players.find(p => p.id === this.lastTrickWinner);
+            let currentWinner = cards[0];
             
+            cards.forEach(([playerId, card]) => {
+                const [currentWinnerPlayerId, currentWinnerCard] = currentWinner;
+                
+                // Trump beats non-trump
+                if (card.suit === trumpSuit && currentWinnerCard.suit !== trumpSuit) {
+                    currentWinner = [playerId, card];
+                }
+                // Higher trump beats lower trump
+                else if (card.suit === trumpSuit && currentWinnerCard.suit === trumpSuit) {
+                    if (this.getCardValue(card, trumpSuit) > this.getCardValue(currentWinnerCard, trumpSuit)) {
+                        currentWinner = [playerId, card];
+                    }
+                }
+                // Higher card of led suit beats lower (if no trump involved)
+                else if (card.suit === leadSuit && currentWinnerCard.suit === leadSuit && currentWinnerCard.suit !== trumpSuit) {
+                    if (this.getCardValue(card, trumpSuit) > this.getCardValue(currentWinnerCard, trumpSuit)) {
+                        currentWinner = [playerId, card];
+                    }
+                }
+            });
+            
+            // Highlight the current winner
+            const winnerPlayer = this.gameState.players.find(p => p.id === currentWinner[0]);
             if (winnerPlayer) {
                 const winnerTrickCard = document.querySelector(`.trick-card[data-position="${winnerPlayer.position}"]`);
                 if (winnerTrickCard) {
-                    winnerTrickCard.classList.add('winner');
-                    setTimeout(() => {
-                        winnerTrickCard.classList.remove('winner');
-                    }, 1000);
+                    winnerTrickCard.classList.add('current-winner');
                 }
             }
         }
+    }
+
+    getCardValue(card, trumpSuit) {
+        // Simplified card value calculation (should match server logic)
+        const rankValues = { '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+        let value = rankValues[card.rank] || 0;
+        
+        // Trump cards get bonus points
+        if (card.suit === trumpSuit) {
+            value += 20;
+            // Jack of trump is highest
+            if (card.rank === 'J') {
+                value = 50;
+            }
+        }
+        
+        return value;
+    }
+
+    cleanupCompleteTrick() {
+        // Clear the stored trick data
+        this.completeTrickData = null;
+        this.displayingCompleteTrick = false;
+        this.trickCompleteTimeout = null;
+        
+        // Animate collection of all trick cards
+        const trickCards = document.querySelectorAll('.trick-card.has-card');
+        trickCards.forEach(trickCard => {
+            const cards = trickCard.querySelectorAll('.card');
+            cards.forEach(card => {
+                card.classList.add('collecting');
+            });
+
+            setTimeout(() => {
+                trickCard.innerHTML = '';
+                trickCard.classList.remove('has-card', 'winner', 'current-winner');
+            }, 800);
+        });
 
         // Update trick count
         const trickCount = this.gameState.completed_tricks_count || 0;
         
         if (this.gameState.phase === 'playing' || this.gameState.phase === 'round_complete') {
             const currentTrick = trickCount + 1;
-            const remainingTricks = 5 - currentTrick;
-            
             document.getElementById('trick-count').textContent = `Trick ${currentTrick} of 5`;
-            
-            if (remainingTricks > 0) {
-                document.getElementById('tricks-remaining').textContent = `${remainingTricks} remaining`;
-            } else {
-                document.getElementById('tricks-remaining').textContent = 'Final trick';
-            }
+            // Hide the remaining tricks display
+            document.getElementById('tricks-remaining').style.display = 'none';
         } else {
             // During dealing or trump selection
             document.getElementById('trick-count').textContent = 'Get ready...';
-            document.getElementById('tricks-remaining').textContent = '5 tricks to play';
+            // Hide the remaining tricks display
+            document.getElementById('tricks-remaining').style.display = 'none';
         }
         
         // Update leader indicator
         this.updateLeaderIndicator();
+    }
+
+    startTrickCollection() {
+        // Clear the timeout reference
+        this.trickCompleteTimeout = null;
+        
+        // Animate collection of all trick cards
+        const trickCards = document.querySelectorAll('.trick-card.has-card');
+        trickCards.forEach(trickCard => {
+            const cards = trickCard.querySelectorAll('.card');
+            cards.forEach(card => {
+                card.classList.add('collecting');
+            });
+
+            setTimeout(() => {
+                trickCard.innerHTML = '';
+                trickCard.classList.remove('has-card', 'winner');
+            }, 800);
+        });
     }
 
     updateActionPanel() {
@@ -712,13 +870,7 @@ class EuchreClient {
         const isTrumpSelectionPlayer = this.gameState.trump_selection_player_index === this.gameState.player_position;
         const isYourTurn = isTrumpSelectionPlayer || isCurrentPlayer || this.needsToDiscard();
 
-        if (phase === 'trump_selection' && isTrumpSelectionPlayer) {
-            this.showTrumpSelectionActions();
-        } else if (phase === 'playing' && this.gameState.trump_maker === this.gameState.player_id && !this.gameState.going_alone) {
-            this.showGoingAloneActions();
-        } else if (phase === 'playing' && isCurrentPlayer && this.needsToDiscard()) {
-            this.showDiscardActions();
-        }
+        // Action panel removed - game actions now handled through card clicks and overlays
 
         // Update game status
         this.updateGameStatus();
@@ -727,12 +879,10 @@ class EuchreClient {
     updateYourTurnIndicator() {
         const overlay = document.getElementById('your-turn-overlay');
         const gameBoard = document.querySelector('.game-board');
-        const actionPanel = document.querySelector('.action-panel');
         
         if (!this.gameState) {
             overlay.style.display = 'none';
             gameBoard.classList.remove('your-turn');
-            actionPanel.classList.remove('your-turn');
             return;
         }
 
@@ -743,10 +893,9 @@ class EuchreClient {
         const needsGoingAloneDecision = phase === 'playing' && this.gameState.trump_maker === this.gameState.player_id && !this.gameState.going_alone;
         const isYourTurn = isTrumpSelectionPlayer || isCurrentPlayer || needsDiscard || needsGoingAloneDecision;
 
-        if (isYourTurn && (phase === 'trump_selection' || phase === 'playing')) {
+        if (isYourTurn && (phase === 'trump_selection' || phase === 'playing' || phase === 'dealer_discard')) {
             overlay.style.display = 'block';
             gameBoard.classList.add('your-turn');
-            actionPanel.classList.add('your-turn');
             
             // Update overlay text based on action needed
             if (phase === 'trump_selection') {
@@ -761,7 +910,6 @@ class EuchreClient {
         } else {
             overlay.style.display = 'none';
             gameBoard.classList.remove('your-turn');
-            actionPanel.classList.remove('your-turn');
         }
     }
 
@@ -774,6 +922,9 @@ class EuchreClient {
     }
 
     showTrumpSelectionActions() {
+        // Action panel removed - this method is disabled
+        return;
+        /*
         const trumpActions = document.getElementById('trump-selection-actions');
         const suitSelection = trumpActions.querySelector('.suit-selection');
         
@@ -798,18 +949,17 @@ class EuchreClient {
                 }
             }
         }
+        */
     }
 
     showGoingAloneActions() {
-        document.getElementById('going-alone-actions').style.display = 'block';
+        // Action panel removed - this method is disabled
+        return;
     }
 
     showDiscardActions() {
-        document.getElementById('discard-actions').style.display = 'block';
-        
-        // Highlight cards as playable for discarding
-        const cards = document.querySelectorAll('#current-player-hand .card');
-        cards.forEach(card => card.classList.add('playable'));
+        // Action panel removed - this method is disabled
+        return;
     }
 
     updateGameStatus() {
@@ -846,13 +996,59 @@ class EuchreClient {
             case 'game_complete':
                 phaseIndicator.textContent = 'Game Complete';
                 currentPlayerSpan.textContent = '';
-                document.getElementById('new-game-btn').style.display = 'inline-block';
+                // New game button removed with action panel
                 break;
                 
             default:
-                phaseIndicator.textContent = 'Waiting...';
+                phaseIndicator.textContent = this.getLastEventMessage() || 'Waiting...';
                 currentPlayerSpan.textContent = '';
         }
+    }
+
+    getLastEventMessage() {
+        if (!this.gameState || !this.gameState.events || this.gameState.events.length === 0) {
+            return null;
+        }
+        
+        // Get the last event and return its message
+        const lastEvent = this.gameState.events[this.gameState.events.length - 1];
+        return lastEvent.message;
+    }
+
+    isCardPlayable(card) {
+        if (!this.gameState || !this.gameState.hand) return false;
+        
+        // During dealer discard, all cards are playable
+        if (this.gameState.phase === 'dealer_discard' && this.needsToDiscard()) {
+            return true;
+        }
+        
+        // During playing phase, check if it's your turn
+        if (this.gameState.phase === 'playing' && 
+            this.gameState.current_player_index === this.gameState.player_position) {
+            
+            // If no cards played yet in trick, any card is playable
+            if (!this.gameState.current_trick || this.gameState.current_trick.cards.length === 0) {
+                return true;
+            }
+            
+            // Get the suit that was led
+            const leadCard = this.gameState.current_trick.cards[0][1]; // [playerId, card]
+            const leadSuit = leadCard.suit;
+            
+            // Check if player has cards of the lead suit
+            const hasLeadSuit = this.gameState.hand.some(c => c.suit === leadSuit);
+            
+            // If player has lead suit, must play lead suit
+            if (hasLeadSuit) {
+                return card.suit === leadSuit;
+            }
+            
+            // If player doesn't have lead suit, any card is playable
+            return true;
+        }
+        
+        return false;
     }
 
     createCardElement(card, faceUp = true) {
@@ -908,6 +1104,13 @@ class EuchreClient {
     handleCardClick(card, cardElement) {
         const phase = this.gameState.phase;
         
+        // Handle dealer discard phase
+        if (phase === 'dealer_discard' && this.needsToDiscard()) {
+            this.discardCard(card);
+            return;
+        }
+        
+        // Handle regular playing phase
         if (phase === 'playing') {
             if (this.needsToDiscard()) {
                 this.discardCard(card);

@@ -1,5 +1,8 @@
 # Roberta Royale - Online Euchre Game
 
+[![Python Tests with Coverage](https://github.com/USERNAME/RobertaRoyale/actions/workflows/python-tests.yml/badge.svg)](https://github.com/USERNAME/RobertaRoyale/actions/workflows/python-tests.yml)
+[![codecov](https://codecov.io/gh/USERNAME/RobertaRoyale/branch/main/graph/badge.svg)](https://codecov.io/gh/USERNAME/RobertaRoyale)
+
 A modern, real-time multiplayer Euchre game built with Python FastAPI backend and vanilla JavaScript frontend. Play with friends online with smooth animations, responsive design, and full Euchre rules implementation.
 
 ## Features
@@ -18,11 +21,14 @@ A modern, real-time multiplayer Euchre game built with Python FastAPI backend an
 
 ### 🎨 Modern UI/UX
 - **Beautiful card animations** - dealing, playing, and collecting tricks
-- **Smooth screen transitions** and responsive design
-- **Visual indicators** for current dealer, trump suit, and game state
+- **Fully responsive design** - optimized for all screen sizes without scrolling
+- **Dynamic player positioning** - your cards always appear at bottom with larger size
+- **Smart card indicators** - green glow and movement for playable cards
+- **Enhanced trick display** - complete 4-card tricks shown for 5 seconds with winner highlighting
+- **Visual feedback** for current dealer, trump suit, and game state
 - **Real-time connection status** and player disconnect handling
-- **Clean, modern aesthetic** with glassmorphism design
-- **Responsive layout** that works on desktop and tablet
+- **Clean, modern aesthetic** with glassmorphism design and smooth transitions
+- **Streamlined interface** - removed clutter for focused gameplay experience
 
 ### 🌐 Multiplayer Features
 - **No registration required** - jump right into games
@@ -166,17 +172,31 @@ python main.py
 - **Comprehensive game state tracking** with disconnect handling
 
 ### Frontend Architecture
-- **Vanilla JavaScript** - no frameworks, pure performance
-- **Modern CSS** with CSS Grid, Flexbox, and animations
-- **WebSocket client** with automatic reconnection
-- **Responsive design** using CSS media queries
+- **Vanilla JavaScript** - no frameworks, pure performance and direct DOM control
+- **Advanced CSS** with CSS Grid, Flexbox, clamp() functions, and dynamic viewport units
+- **Sophisticated animations** using CSS transitions and transforms
+- **WebSocket client** with automatic reconnection and state synchronization
+- **Fully responsive design** with adaptive layouts and component scaling
+- **Dynamic positioning system** that adjusts player perspectives in real-time
+
+### Advanced Game Mechanics
+- **Card Playability Engine**: Analyzes suit following, trump rules, and dealer discard phases
+- **Trick Completion System**: Local data storage prevents server clearing from affecting display
+- **Winner Detection Algorithm**: Real-time analysis of current trick winner with visual feedback
+- **State Management**: Comprehensive tracking of game phases, player actions, and visual states
+- **Event-Driven Architecture**: Responsive UI updates based on game state changes
 
 ### Key Features
+- **Advanced responsive design** using CSS clamp() functions and dynamic viewport units
+- **Intelligent card playability detection** following complete Euchre rules
+- **Dynamic trick completion system** with local storage and 5-second display delays
+- **Real-time winner highlighting** during active tricks with golden glow effects
+- **Adaptive player positioning** ensuring optimal view regardless of seat position
 - **Connection management** with exponential backoff reconnection
 - **Game state synchronization** across all clients
 - **Smooth animations** for card dealing, playing, and collecting
-- **Visual feedback** for game actions and player states
-- **Error handling** with user-friendly messages
+- **Comprehensive visual feedback** for all game actions and player states
+- **Robust error handling** with user-friendly messages
 
 ## Browser Compatibility
 

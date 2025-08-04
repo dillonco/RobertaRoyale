@@ -85,6 +85,7 @@
                 <div class="ai-controls" id="ai-controls">
                     <p id="room-status">Need more players?</p>
                     <button id="add-ai-btn" class="btn btn-primary">Add AI Player</button>
+                    <button id="start-game-btn" class="btn btn-success">Start Game</button>
                 </div>
                 
                 <button id="leave-room-btn" class="btn btn-secondary">Leave Room</button>
@@ -212,50 +213,12 @@
                     </div>
                 </div>
 
-                <!-- Action Panel -->
-                <div class="action-panel">
-                    <!-- Trump Selection Actions -->
-                    <div id="trump-selection-actions" class="action-group" style="display: none;">
-                        <h3>Trump Selection</h3>
-                        <div class="trump-actions">
-                            <button id="order-up-btn" class="btn btn-primary">Order Up</button>
-                            <button id="pass-btn" class="btn btn-secondary">Pass</button>
-                        </div>
-                        <div class="suit-selection" style="display: none;">
-                            <button class="suit-btn" data-suit="hearts">♥</button>
-                            <button class="suit-btn" data-suit="diamonds">♦</button>
-                            <button class="suit-btn" data-suit="clubs">♣</button>
-                            <button class="suit-btn" data-suit="spades">♠</button>
-                        </div>
-                    </div>
-
-                    <!-- Going Alone Actions -->
-                    <div id="going-alone-actions" class="action-group" style="display: none;">
-                        <h3>Going Alone?</h3>
-                        <div class="alone-actions">
-                            <button id="go-alone-btn" class="btn btn-primary">Go Alone</button>
-                            <button id="with-partner-btn" class="btn btn-secondary">With Partner</button>
-                        </div>
-                    </div>
-
-                    <!-- Discard Actions -->
-                    <div id="discard-actions" class="action-group" style="display: none;">
-                        <h3>Select a card to discard</h3>
-                        <p>Click on a card in your hand to discard it.</p>
-                    </div>
-
-                    <!-- Game Actions -->
-                    <div id="game-actions" class="action-group">
-                        <button id="new-game-btn" class="btn btn-secondary" style="display: none;">New Game</button>
-                        <button id="leave-game-btn" class="btn btn-secondary">Leave Game</button>
-                    </div>
-                </div>
                 
-                <!-- Game Event Log -->
-                <div class="event-log" id="event-log">
+                <!-- Game Event Log (Floating) -->
+                <div class="event-log collapsed" id="event-log">
                     <div class="event-log-header">
                         <h3>Game Log</h3>
-                        <button id="toggle-log-btn" class="btn btn-small">Hide</button>
+                        <button id="toggle-log-btn" class="btn btn-small">Show</button>
                     </div>
                     <div class="event-log-content" id="event-log-content">
                         <!-- Events will be populated by JavaScript -->

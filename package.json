@@ -4,7 +4,8 @@
   "description": "Euchre card game with multiplayer",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "mkdir -p dist && cp -r index.html css js dist/"
   },
   "engines": {
     "node": ">=16.0.0"

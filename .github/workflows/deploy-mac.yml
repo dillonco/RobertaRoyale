@@ -1,0 +1,21 @@
+name: Deploy to Mac
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-mac-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: self-hosted
+
+    steps:
+      - name: Deploy
+        run: |
+          git -C /Users/nix/RobertaRoyale fetch origin main
+          git -C /Users/nix/RobertaRoyale reset --hard origin/main
+          bash /Users/nix/RobertaRoyale/scripts/deploy.sh

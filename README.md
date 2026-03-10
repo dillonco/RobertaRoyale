@@ -32,16 +32,48 @@ PORT=8080 node server.js
 
 ## Deploying to production
 
-The frontend (static files) and WebSocket backend can be split across hosts.
+The frontend (static files) and backend WebSocket server are deployed separately.
 
-**Frontend** — deploy the static files (`index.html`, `css/`, `js/`) to any static host (Cloudflare Pages, Netlify, etc.).
+### Frontend — Cloudflare Pages
 
-**Backend** — deploy `server.js` to a host that supports persistent WebSocket connections (Fly.io, Railway, Render, etc.).
+Deploy `index.html`, `css/`, and `js/` to Cloudflare Pages:
 
-Then set your backend URL in `js/config.js`:
+1. Push the repo to GitHub
+2. Cloudflare Pages → Create a project → Connect the repo
+3. Leave build command and output directory empty (no build step)
+4. Deploy
+
+### Backend — Mac (self-hosted)
+
+The WebSocket server runs as a background process on a Mac, deployed automatically via a GitHub Actions self-hosted runner.
+
+**One-time setup on the Mac:**
+
+```bash
+git clone https://github.com/your-org/RobertaRoyale /Users/nix/RobertaRoyale
+cd /Users/nix/RobertaRoyale
+npm ci --omit=dev
+bash scripts/start.sh
+```
+
+Install the GitHub Actions self-hosted runner on the Mac (Settings → Actions → Runners → New self-hosted runner), then every push to `main` auto-deploys via `.github/workflows/deploy-mac.yml`.
+
+**Manual start/stop/restart:**
+
+```bash
+bash scripts/start.sh
+bash scripts/stop.sh
+bash scripts/restart.sh
+```
+
+Server logs: `logs/server.log`
+
+### Connect frontend to backend
+
+Edit `js/config.js` and set `WS_URL` to the backend's public WebSocket URL (e.g. via Cloudflare Tunnel):
 
 ```js
-window.WS_URL = 'wss://your-server.fly.dev';
+window.WS_URL = 'wss://your-server-url';
 ```
 
 ## Project structure

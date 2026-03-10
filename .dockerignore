@@ -1,0 +1,12 @@
+node_modules/
+dist/
+logs/
+.server.pid
+.github/
+scripts/
+css/
+index.html
+*.md
+.gitignore
+.cfignore
+.dockerignore

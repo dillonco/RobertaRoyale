@@ -9,6 +9,28 @@ A free, browser-based Euchre card game. Play solo against AI or host a private g
 - Go alone, stick-the-dealer rules
 - Fully responsive — works on mobile and desktop
 
+## Prerequisites
+
+Node.js ≥ 16 is required to run the multiplayer server. The recommended way to install and manage Node.js is [nvm](https://github.com/nvm-sh/nvm):
+
+```bash
+# Install nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+
+# Restart your shell, then install the latest LTS release
+nvm install --lts
+nvm use --lts
+
+# Verify
+node --version
+npm --version
+```
+
+> On macOS you can also use [Homebrew](https://brew.sh): `brew install node`
+> On Windows, use [nvm-windows](https://github.com/coreybutler/nvm-windows) or the official installer at nodejs.org.
+
+Solo mode (practice vs AI) opens directly in the browser with no Node.js required.
+
 ## Running locally
 
 **Solo only (no multiplayer):**
@@ -43,16 +65,17 @@ Deploy `index.html`, `css/`, and `js/` to Cloudflare Pages:
 3. Leave build command and output directory empty (no build step)
 4. Deploy
 
-### Backend — Mac (self-hosted)
+### Backend — Mac (self-hosted, Docker)
 
-The WebSocket server runs as a background process on a Mac, deployed automatically via a GitHub Actions self-hosted runner.
+The WebSocket server runs in Docker on a Mac, deployed automatically via a GitHub Actions self-hosted runner.
+
+**Prerequisites on the Mac:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) must be installed and running.
 
 **One-time setup on the Mac:**
 
 ```bash
 git clone https://github.com/your-org/RobertaRoyale /Users/nix/RobertaRoyale
 cd /Users/nix/RobertaRoyale
-npm ci --omit=dev
 bash scripts/start.sh
 ```
 
@@ -61,12 +84,16 @@ Install the GitHub Actions self-hosted runner on the Mac (Settings → Actions �
 **Manual start/stop/restart:**
 
 ```bash
-bash scripts/start.sh
-bash scripts/stop.sh
-bash scripts/restart.sh
+bash scripts/start.sh    # build image and start container
+bash scripts/stop.sh     # stop and remove container
+bash scripts/restart.sh  # rebuild and restart
 ```
 
-Server logs: `logs/server.log`
+**View logs:**
+
+```bash
+docker compose logs -f
+```
 
 ### Connect frontend to backend
 

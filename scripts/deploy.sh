@@ -22,14 +22,8 @@ if [ "$RUN_GIT_OPERATIONS" -eq 1 ]; then
     echo "Head after: $(git rev-parse --short HEAD)"
 fi
 
-echo "=== Clear quarantine (macOS) ==="
-xattr -dr com.apple.quarantine . 2>/dev/null || true
-
-echo "=== Dependencies ==="
-npm ci --omit=dev
-
 echo "=== Restart service ==="
-bash scripts/restart.sh
+docker compose up -d --build --force-recreate
 
 echo "=== Health check ==="
 for i in $(seq 1 15); do
@@ -41,6 +35,6 @@ for i in $(seq 1 15); do
   sleep 2
 done
 echo "ERROR: Server did not become ready after 30s"
-echo "=== Server log (last 50 lines) ==="
-tail -50 logs/server.log 2>/dev/null || echo "(no log file found)"
+echo "=== Container logs (last 50 lines) ==="
+docker compose logs --tail=50
 exit 1

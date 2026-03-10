@@ -1,251 +1,63 @@
-# Roberta Royale - Online Euchre Game
+# Roberta Royale
 
-[![Python Tests with Coverage](https://github.com/USERNAME/RobertaRoyale/actions/workflows/python-tests.yml/badge.svg)](https://github.com/USERNAME/RobertaRoyale/actions/workflows/python-tests.yml)
-[![codecov](https://codecov.io/gh/USERNAME/RobertaRoyale/branch/main/graph/badge.svg)](https://codecov.io/gh/USERNAME/RobertaRoyale)
-
-A modern, real-time multiplayer Euchre game built with Python FastAPI backend and vanilla JavaScript frontend. Play with friends online with smooth animations, responsive design, and full Euchre rules implementation.
+A free, browser-based Euchre card game. Play solo against AI or host a private game with friends — no account required.
 
 ## Features
 
-### 🎮 Complete Euchre Experience
-- **Full 4-player Euchre** with fixed partnerships (North/South vs East/West)
-- **24-card deck** (9, 10, J, Q, K, A in each suit)
-- **Trump suit selection** with proper ordering/passing mechanics
-- **Jack rankings** (jack of trump suit and jack of same color)
-- **Going alone** option for ambitious players
-- **Proper scoring** - first to 10 points wins
-- **Euchre scoring rules**:
-  - 1 point for 3-4 tricks
-  - 2 points for all 5 tricks (euchre)
-  - 4 points for going alone and taking all 5
+- Practice mode vs AI (normal + easy difficulty)
+- Private multiplayer rooms (2–4 players, AI fills empty seats)
+- Go alone, stick-the-dealer rules
+- Fully responsive — works on mobile and desktop
 
-### 🎨 Modern UI/UX
-- **Beautiful card animations** - dealing, playing, and collecting tricks
-- **Fully responsive design** - optimized for all screen sizes without scrolling
-- **Dynamic player positioning** - your cards always appear at bottom with larger size
-- **Smart card indicators** - green glow and movement for playable cards
-- **Enhanced trick display** - complete 4-card tricks shown for 5 seconds with winner highlighting
-- **Visual feedback** for current dealer, trump suit, and game state
-- **Real-time connection status** and player disconnect handling
-- **Clean, modern aesthetic** with glassmorphism design and smooth transitions
-- **Streamlined interface** - removed clutter for focused gameplay experience
+## Running locally
 
-### 🌐 Multiplayer Features
-- **No registration required** - jump right into games
-- **Room-based system** with 6-character join codes
-- **Real-time WebSocket communication** for instant updates
-- **Player disconnect/reconnect handling** with game state persistence
-- **Connection status indicators** show who's online
+**Solo only (no multiplayer):**
 
-## Project Structure
+Open `index.html` directly in a browser. No server needed.
 
-```
-RobertaRoyale/
-├── backend/                 # Python FastAPI server
-│   ├── main.py             # FastAPI app and WebSocket handlers
-│   ├── game_logic.py       # Core Euchre game rules and logic
-│   └── pyproject.toml      # Python dependencies
-├── frontend/               # Client-side application
-│   ├── index.html          # Main HTML structure
-│   ├── styles.css          # Modern CSS with animations
-│   └── game-client.js      # JavaScript game client
-├── static/                 # Static assets (for future card images)
-└── README.md              # This file
-```
+**With multiplayer:**
 
-## Setup and Installation
-
-### Prerequisites
-- Python 3.8 or higher
-- [UV package manager](https://docs.astral.sh/uv/) (recommended) or pip
-- A modern web browser
-
-### Installation Steps
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd RobertaRoyale
-   ```
-
-2. **Install UV (if not already installed)**
-   ```bash
-   # On macOS/Linux
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   
-   # On Windows
-   powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-   
-   # Or via pip
-   pip install uv
-   ```
-
-3. **Set up the Python backend with UV**
-   ```bash
-   cd backend
-   uv sync
-   ```
-
-#### Alternative: Using pip
-If you prefer to use pip instead of UV:
 ```bash
-cd backend
-pip install -e .
+npm install
+node server.js
 ```
 
-## Running the Application
+Then open [http://localhost:3000](http://localhost:3000).
 
-### Start the Backend Server
+The WebSocket server defaults to port `3000`. Override with the `PORT` environment variable:
 
-From the `backend` directory:
-
-#### Using UV (Recommended)
 ```bash
-# For development (with auto-reload)
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
-
-# For production
-uv run uvicorn main:app --host 0.0.0.0 --port 8000
-
-# Or run the Python script directly
-uv run python main.py
+PORT=8080 node server.js
 ```
 
-#### Using pip/system Python
-```bash
-# For development (with auto-reload)
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+## Deploying to production
 
-# For production
-uvicorn main:app --host 0.0.0.0 --port 8000
+The frontend (static files) and WebSocket backend can be split across hosts.
 
-# Or run the Python script directly
-python main.py
+**Frontend** — deploy the static files (`index.html`, `css/`, `js/`) to any static host (Cloudflare Pages, Netlify, etc.).
+
+**Backend** — deploy `server.js` to a host that supports persistent WebSocket connections (Fly.io, Railway, Render, etc.).
+
+Then set your backend URL in `js/config.js`:
+
+```js
+window.WS_URL = 'wss://your-server.fly.dev';
 ```
 
-### Access the Game
+## Project structure
 
-1. Open your web browser
-2. Navigate to `http://localhost:8000`
-3. Enter your name and either:
-   - **Create Room** to start a new game
-   - **Join Room** with a 6-character room code
-
-### Playing with Friends
-
-1. One player creates a room and shares the 6-character room code
-2. Other players join using the room code
-3. Game starts automatically when 4 players have joined
-4. Follow standard Euchre rules and enjoy!
-
-## How to Play Euchre
-
-### Basic Rules
-1. **Teams**: North/South vs East/West (fixed partnerships)
-2. **Goal**: First team to 10 points wins
-3. **Dealing**: 5 cards to each player, rotate dealer clockwise
-4. **Trump Selection**: 
-   - Round 1: Players can "order up" the turned card or pass
-   - Round 2: Players can name any suit except the turned-down suit
-5. **Playing**: Follow suit if possible, highest card wins trick
-6. **Scoring**: 
-   - 3-4 tricks = 1 point
-   - All 5 tricks = 2 points
-   - Going alone with all 5 tricks = 4 points
-   - Getting euchred (trump makers win <3 tricks) = 2 points for opponents
-
-### Trump Card Rankings (High to Low)
-1. Jack of trump suit (Right Bower)
-2. Jack of same color (Left Bower)
-3. Ace of trump
-4. King of trump
-5. Queen of trump
-6. 10 of trump
-7. 9 of trump
-
-## Technical Details
-
-### Backend Architecture
-- **FastAPI** for HTTP and WebSocket server
-- **Real-time WebSocket communication** for multiplayer functionality
-- **Room-based game management** with automatic cleanup
-- **Comprehensive game state tracking** with disconnect handling
-
-### Frontend Architecture
-- **Vanilla JavaScript** - no frameworks, pure performance and direct DOM control
-- **Advanced CSS** with CSS Grid, Flexbox, clamp() functions, and dynamic viewport units
-- **Sophisticated animations** using CSS transitions and transforms
-- **WebSocket client** with automatic reconnection and state synchronization
-- **Fully responsive design** with adaptive layouts and component scaling
-- **Dynamic positioning system** that adjusts player perspectives in real-time
-
-### Advanced Game Mechanics
-- **Card Playability Engine**: Analyzes suit following, trump rules, and dealer discard phases
-- **Trick Completion System**: Local data storage prevents server clearing from affecting display
-- **Winner Detection Algorithm**: Real-time analysis of current trick winner with visual feedback
-- **State Management**: Comprehensive tracking of game phases, player actions, and visual states
-- **Event-Driven Architecture**: Responsive UI updates based on game state changes
-
-### Key Features
-- **Advanced responsive design** using CSS clamp() functions and dynamic viewport units
-- **Intelligent card playability detection** following complete Euchre rules
-- **Dynamic trick completion system** with local storage and 5-second display delays
-- **Real-time winner highlighting** during active tricks with golden glow effects
-- **Adaptive player positioning** ensuring optimal view regardless of seat position
-- **Connection management** with exponential backoff reconnection
-- **Game state synchronization** across all clients
-- **Smooth animations** for card dealing, playing, and collecting
-- **Comprehensive visual feedback** for all game actions and player states
-- **Robust error handling** with user-friendly messages
-
-## Browser Compatibility
-
-- **Chrome/Edge** 88+
-- **Firefox** 85+
-- **Safari** 14+
-
-## Development
-
-### Running in Development Mode
-
-The server includes auto-reload for development:
-
-#### With UV
-```bash
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
-
-#### With pip/system Python
-```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+index.html        Main HTML — all screens and dialogs
+css/style.css     Styles
+server.js         Node.js WebSocket + HTTP server
+js/
+  euchre.js       Pure game engine (immutable state)
+  ai.js           AI bid/play logic
+  network.js      WebSocket client
+  app.js          App controller and UI renderer
+  config.js       Runtime config (WS_URL)
 ```
-
-### Project Architecture
-
-The application follows a clean separation between:
-- **Game Logic** (`game_logic.py`) - Pure Python Euchre rules
-- **Server Logic** (`main.py`) - WebSocket handling and room management  
-- **Client Logic** (`game-client.js`) - UI and server communication
-- **Styling** (`styles.css`) - Modern, responsive design
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
 
 ## License
 
-This project is open source. Feel free to use, modify, and distribute.
-
-## Support
-
-If you encounter any issues:
-1. Check that the server is running on port 8000
-2. Ensure your browser supports WebSockets
-3. Try refreshing the page to reconnect
-4. Check the browser console for error messages
-
-Enjoy playing Roberta Royale! 🎯♠️♥️♦️♣️
+MIT

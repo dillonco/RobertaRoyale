@@ -2,115 +2,179 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## Local development
 
-Roberta Royale is a real-time multiplayer online Euchre game with a Python FastAPI backend and vanilla JavaScript frontend. The game supports 4 players with WebSocket communication, AI players, and full Euchre rules implementation.
-
-## Development Commands
-
-### Backend Development
 ```bash
-# Start development server (from backend/ directory)
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# Solo mode — no server needed, open directly in browser:
+open index.html
 
-# Alternative: run directly
-python main.py
-
-# Install dependencies (from backend/ directory)
-pip install -e .
+# Multiplayer (requires Node.js ≥ 16):
+npm install
+node server.js
+# → http://localhost:3000
+# Open two tabs and create/join the same room code to test multiplayer locally.
 ```
 
-### Frontend Development
-- No build process required - static files served directly
-- Frontend files served at http://localhost:8000
-- Static assets in `/static` directory
+No build step, no bundler, no transpilation. Changes to any file take effect on the next browser refresh.
 
-## Architecture Overview
+The `PORT` environment variable overrides the default 3000:
+```bash
+PORT=8080 node server.js
+```
 
-### Backend Structure (`backend/`)
-- **`main.py`**: FastAPI application with WebSocket handlers, room management, and AI integration
-- **`game_logic.py`**: Core Euchre game engine with rules, card logic, and state management
-- **`ai_player.py`**: AI player implementation with decision-making algorithms
-- **`pyproject.toml`**: Python dependencies (FastAPI, uvicorn, websockets)
+## Production deployment
 
-### Frontend Structure (`frontend/`)
-- **`index.html`**: Single-page application with responsive game screens and dynamic layouts
-- **`game-client.js`**: WebSocket client, game state management, UI interactions, and advanced game mechanics
-- **`styles.css`**: Modern responsive CSS with animations, visual feedback, and adaptive layouts
+### Architecture
 
-### Key Technical Patterns
+```
+Players → Cloudflare Pages (CDN)     — serves index.html, css/, js/
+             ↓ WebSocket
+          WebSocket server (Fly.io)  — runs server.js, holds room state in memory
+```
 
-**WebSocket Communication**: Real-time bidirectional communication using FastAPI WebSockets
-- Message-based protocol with typed message handlers
-- Automatic reconnection with exponential backoff
-- Player connection status tracking
+Solo mode (Practice vs AI) works entirely from Cloudflare Pages with no backend.
+Multiplayer requires the WebSocket server.
 
-**Game State Management**: 
-- Server maintains authoritative game state
-- Each player receives personalized game state (hand, perspective)
-- State synchronization after every action
+---
 
-**Room-Based Architecture**:
-- 6-character room codes for game sessions
-- Connection manager handles player lifecycle
-- Automatic cleanup of empty rooms
+### 1. WebSocket server — Fly.io
 
-**AI Integration**:
-- Pluggable AI system with separate AI players
-- AI actions delayed to simulate human timing
-- AI decisions based on game state analysis
+Fly.io is recommended: free allowance covers a single small VM, WebSockets work without any proxy config, and `fly deploy` handles everything.
 
-## Euchre Game Rules Implementation
+**One-time setup:**
+```bash
+brew install flyctl          # or: curl -L https://fly.io/install.sh | sh
+fly auth login
+fly launch                   # creates fly.toml, detects Node, sets PORT automatically
+```
 
-**Card System**: 24-card deck (9, 10, J, Q, K, A) with trump suit mechanics
-**Teams**: Fixed partnerships (North/South vs East/West)
-**Scoring**: First to 10 points wins, with euchre and going-alone bonuses
-**Trump Selection**: Two-round bidding system with dealer advantage
+When prompted: choose a name (e.g. `euchre-server`), pick a region close to your users, decline Postgres.
 
-## Development Notes
+**`fly.toml` — key settings to confirm:**
+```toml
+[http_service]
+  internal_port = 3000
+  force_https = true
 
-- Uses vanilla JavaScript for frontend (no framework dependencies)
-- WebSocket connections managed through ConnectionManager class
-- Game logic separated from server logic for clean architecture
-- AI players seamlessly integrated into multiplayer flow
-- Fully responsive design with CSS clamp() functions and dynamic viewport units
-- No registration system - jump-in gameplay
-- Advanced UI features: playable card indicators, trick completion displays, winner highlighting
-- Dynamic player positioning system (current player always at bottom)
-- Real-time visual feedback for game actions and card playability
+  [[http_service.checks]]
+    path = "/"          # server.js serves 200 on /
+```
 
-## Recent UI/UX Improvements
+**Deploy:**
+```bash
+fly deploy
+# Server will be live at https://euchre-server.fly.dev
+# WebSocket endpoint: wss://euchre-server.fly.dev
+```
 
-### Responsive Design Overhaul
-- Comprehensive responsive design using CSS clamp() functions for scaling
-- Dynamic viewport units (100dvh) for optimal screen utilization
-- Flexible layouts that adapt to different screen sizes without scrolling
-- Enhanced card sizing and spacing for better visual hierarchy
+> **Important:** Room state lives in memory. A `fly deploy` or crash clears all active rooms. This is acceptable for a card game — active players get disconnected and see the disconnect screen. For persistence across deploys, Fly Machines' `[mounts]` could store state to disk, but that's not needed yet.
 
-### Enhanced Game Experience
-- **Dynamic Player Positioning**: Current player's cards always appear at bottom with larger size
-- **Playable Card Indicators**: Green glow and upward movement for selectable cards
-- **Complete Trick Display**: All 4 cards visible for 5 seconds after trick completion
-- **Winner Highlighting**: Current winning card highlighted with golden glow during active tricks
-- **Streamlined Interface**: Removed action panel for cleaner gameplay experience
-- **Game Log Integration**: Real-time game events replace waiting messages
+---
 
-### Advanced Card Game Features
-- Sophisticated card playability logic following Euchre rules (suit following, trump handling)
-- Dealer discard functionality with proper phase handling
-- Trick completion system with local data storage to prevent server clearing issues
-- Visual feedback for all game actions and state changes
-- Automatic positioning system that adapts to different player perspectives
+### 2. Configure the frontend WebSocket URL
 
-### Technical Implementation Details
-- **CSS Animations**: Smooth transitions for card movements and state changes
-- **JavaScript State Management**: Local storage of trick data for enhanced display control
-- **Dynamic CSS Classes**: Real-time class assignment based on game state
-- **Responsive Breakpoints**: Optimized layouts for desktop, tablet, and mobile
-- **Performance Optimizations**: Efficient DOM manipulation and event handling
+Edit `js/config.js` and set `WS_URL` to your Fly.io server:
 
-## File Dependencies
+```js
+window.WS_URL = 'wss://euchre-server.fly.dev';
+```
 
-- Backend depends on: `fastapi>=0.104.0`, `uvicorn[standard]>=0.24.0`, `websockets>=12.0`, `python-multipart>=0.0.6`
-- Frontend has no external dependencies (pure vanilla JS/CSS/HTML)
-- Static files served by FastAPI StaticFiles middleware
+This file is the only thing that changes between local dev (`null`) and production.
+
+---
+
+### 3. Frontend — Cloudflare Pages
+
+**Files to deploy:** everything except `server.js`, `node_modules/`, `package.json`, `.gitignore` — i.e. `index.html`, `css/`, `js/` (including the updated `config.js`).
+
+**Setup via Cloudflare dashboard:**
+1. Push the repo to GitHub
+2. Go to Cloudflare Pages → Create a project → Connect to GitHub repo
+3. Build settings:
+   - **Build command:** *(leave empty — no build step)*
+   - **Output directory:** *(leave empty or set to `/`)*
+4. Deploy
+
+After the first deploy, Cloudflare Pages gives you a `*.pages.dev` URL. You can add a custom domain in the Pages dashboard.
+
+**No `_redirects` file is needed** — the app is entirely single-page with no client-side routing.
+
+---
+
+### 4. CORS — server.js
+
+The WebSocket upgrade request from `pages.dev` (or your custom domain) will include an `Origin` header. The current `server.js` does not validate `Origin`, so it accepts connections from any origin by default. That's fine for a public game. If you want to lock it down later, add an origin check in the `wss.on('connection')` handler.
+
+---
+
+### Deployment checklist
+
+- [ ] `js/config.js` — `WS_URL` set to `wss://your-server.fly.dev`
+- [ ] `fly deploy` succeeded, server responds at the HTTPS URL
+- [ ] Cloudflare Pages deployed with updated `config.js`
+- [ ] Open the site, create a Private Game room — confirm the WebSocket connects
+
+---
+
+## Architecture
+
+### Two execution environments
+
+The same game logic runs in two places:
+
+1. **Browser (solo mode):** `euchre.js` + `ai.js` + `network.js` + `app.js` loaded as plain `<script defer>` tags. All globals (`Euchre`, `EuchreAI`, `Network`) are set on `window`. `config.js` loads synchronously (no `defer`) so `window.WS_URL` is available when the deferred scripts run.
+
+2. **Node.js server (multiplayer):** `server.js` loads `euchre.js` via `require()`, then sets `global.Euchre` before loading `ai.js` — because `ai.js` reads `Euchre` from global scope to work in both environments.
+
+### State flow
+
+```
+BIDDING_ROUND1 → BIDDING_ROUND2 → DEALER_DISCARD → PLAYING → TRICK_END → HAND_END → (next hand or game over)
+```
+
+- State never skips HAND_END. GAME_OVER is only a `Phase` constant; the server calls `broadcastGameOver()` + deletes the room instead of setting that phase.
+- Every state mutation returns a **new object** — `euchre.js` is purely functional with no mutation.
+
+### Solo vs multiplayer in app.js
+
+`multiplayerMode` (bool) and `mySeatIndex` (0–3) are the key flags.
+
+- **Solo:** `app.js` drives the game loop via `processGameLoop()`, which schedules AI actions with `setTimeout`. Human is always seat 0 (South).
+- **Multiplayer:** Server drives everything. `processGameLoop()` is a no-op. The client just re-renders on each `game_state` message. `seatToPos(seatIdx)` rotates the board so the local player always appears at South.
+
+### Perspective rotation
+
+```js
+seatToPos(seatIdx) = ['south','west','north','east'][(seatIdx - mySeatIndex + 4) % 4]
+```
+
+### Teams
+
+Seat 0 (South) + Seat 2 (North) = team 0. Seats 1 + 3 = team 1.
+
+### Server room lifecycle
+
+- `rooms` Map: max 100 rooms. Room is deleted when all players disconnect pre-game or when `broadcastGameOver()` is called.
+- Disconnected mid-game: seat is added to `room.aiSeats` and AI takes over — the player object stays with `ws = null`.
+- TRICK_END: server auto-advances after 1400ms via `_trickTimer`. HAND_END requires host to send `{action:'next_hand'}`.
+
+### Key files
+
+| File | Role |
+|------|------|
+| `js/config.js` | Runtime config — set `WS_URL` here for production. |
+| `js/euchre.js` | Pure game engine — all rules, state transitions, card logic. Exported as `Euchre` namespace. |
+| `js/ai.js` | Bid/discard/play decisions. Exported as `EuchreAI`. Reads `Euchre` from global scope. |
+| `js/network.js` | WebSocket client wrapper. Uses `window.WS_URL` if set, otherwise same-origin. |
+| `js/app.js` | App controller + all UI rendering. Single IIFE. |
+| `server.js` | HTTP static file server + WebSocket game server. Handles all room/AI logic for multiplayer. |
+
+### XSS safety
+
+Player names must be escaped before inserting into `innerHTML`. Use the `escHtml()` helper defined at the top of `app.js`. All other name display uses `.textContent` and is safe by default.
+
+### CSS conventions
+
+- CSS variables defined in `:root` in `style.css` — `--accent` is `#93f005` (green).
+- WCAG AA contrast maintained. ARIA live regions (`#live-status`, `#live-alert`) used for screen-reader announcements via `announce()` in app.js.
+- Responsive breakpoints are `@media` blocks at the bottom of `style.css`.

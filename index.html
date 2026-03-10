@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Roberta Royale — free in-browser Euchre. Play against AI or with friends. No download required.">
+  <meta property="og:title" content="Roberta Royale">
+  <meta property="og:description" content="Roberta Royale — free in-browser Euchre. Play vs AI or friends. No account needed.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#030805">
+  <title>Roberta Royale</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%2393f005'>♠</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Preconnect for font loading performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+</head>
+<body>
+
+<!-- ── ARIA Live Regions (screen-reader announcements) ───────────────────── -->
+<div id="live-status" role="status"  aria-live="polite"   aria-atomic="true"></div>
+<div id="live-alert"  role="alert"   aria-live="assertive" aria-atomic="true"></div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     SCREEN: HOME
+════════════════════════════════════════════════════════════════════════ -->
+<main id="screen-home" class="screen" aria-label="Roberta Royale home screen">
+  <header class="home-header" role="banner">
+    <h1 class="home-logo">
+      ROBERTA ROYALE
+      <span class="home-logo-suits" aria-hidden="true">♠ ♥ ♦ ♣</span>
+    </h1>
+    <div class="home-logo-decoration" aria-hidden="true">
+      <span>♠</span><span class="home-rule"></span>
+      <span>♥</span><span class="home-rule"></span>
+      <span>♦</span><span class="home-rule"></span>
+      <span>♣</span>
+    </div>
+    <p class="home-tagline">Classic Midwest card game · Free · No account needed</p>
+  </header>
+
+  <nav aria-label="Game modes">
+    <ul class="mode-grid" role="list">
+      <li>
+        <button id="btn-play-practice" class="mode-card" autofocus data-suit="♠">
+          <span class="mode-icon" aria-hidden="true">🤖</span>
+          <span class="mode-title">Practice vs AI</span>
+          <span class="mode-desc">Hone your skills against computer opponents</span>
+          <span class="mode-badge">AVAILABLE NOW</span>
+        </button>
+      </li>
+      <li>
+        <button id="btn-play-private" class="mode-card" data-suit="♥">
+          <span class="mode-icon" aria-hidden="true">🔒</span>
+          <span class="mode-title">Private Game</span>
+          <span class="mode-desc">Invite friends with a link or code</span>
+          <span class="mode-badge">AVAILABLE NOW</span>
+        </button>
+      </li>
+      <li>
+        <button id="btn-play-quick" class="mode-card" data-suit="♦">
+          <span class="mode-icon" aria-hidden="true">⚡</span>
+          <span class="mode-title">Quick Match</span>
+          <span class="mode-desc">Jump into a casual public game</span>
+          <span class="mode-badge">COMING SOON</span>
+        </button>
+      </li>
+      <li>
+        <button id="btn-play-tourney" class="mode-card" data-suit="♣">
+          <span class="mode-icon" aria-hidden="true">🏆</span>
+          <span class="mode-title">Tournaments</span>
+          <span class="mode-desc">Compete in scheduled bracket events</span>
+          <span class="mode-badge">COMING SOON</span>
+        </button>
+      </li>
+    </ul>
+  </nav>
+
+  <footer class="home-footer">
+    <button class="btn btn--ghost" id="btn-rules">📖 Rules of Euchre</button>
+    <span style="color:var(--text-muted);font-size:.7rem">Free · No download · WCAG AA</span>
+  </footer>
+</main>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     SCREEN: PRACTICE SETUP
+════════════════════════════════════════════════════════════════════════ -->
+<section id="screen-setup" class="screen" aria-label="Practice game setup"
+         aria-hidden="true">
+  <div class="setup-card">
+    <h2 class="setup-title">Practice vs AI</h2>
+
+    <div class="form-group">
+      <label class="form-label" for="setup-name">Your name</label>
+      <input id="setup-name" class="form-input" type="text" value="You"
+             maxlength="20" autocomplete="nickname"
+             aria-describedby="setup-name-hint">
+      <span id="setup-name-hint" class="sr-only">Up to 20 characters</span>
+    </div>
+
+    <fieldset class="form-group">
+      <legend class="form-label">AI difficulty</legend>
+      <div class="radio-group" role="radiogroup">
+        <label class="radio-option">
+          <input type="radio" name="difficulty" value="easy">
+          Easy
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="difficulty" value="normal" checked>
+          Normal
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-group">
+      <legend class="form-label">Game to</legend>
+      <div class="radio-group" role="radiogroup">
+        <label class="radio-option">
+          <input type="radio" name="target" value="5">
+          5 pts
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="target" value="7">
+          7 pts
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="target" value="10" checked>
+          10 pts
+        </label>
+      </div>
+    </fieldset>
+
+    <div class="setup-actions">
+      <button id="btn-start-game" class="btn btn--primary btn--full" autofocus>
+        Deal Cards
+      </button>
+      <button id="btn-back-setup" class="btn btn--ghost btn--full">
+        ← Back
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     SCREEN: GAME TABLE
+════════════════════════════════════════════════════════════════════════ -->
+<section id="screen-game" class="screen" aria-label="Roberta Royale game table"
+         aria-hidden="true">
+
+  <div class="ambient-line" aria-hidden="true"></div>
+
+  <!-- Top bar: title / trump / score -->
+  <div class="game-topbar" role="banner">
+    <span class="game-title-small" aria-hidden="true">ROBERTA ROYALE</span>
+
+    <div id="trump-badge" role="status" aria-live="polite" hidden>
+      <span class="trump-label">TRUMP</span>
+      <!-- populated by JS -->
+    </div>
+
+    <div id="score-display" aria-label="Current score" role="status" aria-live="polite">
+      <!-- populated by JS -->
+    </div>
+
+    <button id="btn-log-toggle" class="btn btn--ghost"
+            style="padding:.35rem .6rem;font-size:.82rem;min-height:36px"
+            aria-label="Toggle activity log" aria-expanded="false">📋</button>
+
+    <button id="btn-quit-game" class="btn btn--ghost"
+            style="padding:.35rem .65rem;font-size:.75rem;min-height:36px"
+            aria-label="Quit game and return to home">✕ <span class="btn-quit-label">Quit</span></button>
+  </div>
+
+  <!-- Game table grid -->
+  <div class="game-table" role="region" aria-label="Game table">
+
+    <div id="game-status-text" class="game-status-text" aria-hidden="true"></div>
+
+    <!-- North (Partner AI) -->
+    <div class="player-area player-area--north" id="player-area-north"
+         aria-label="North player — your partner">
+      <div class="player-hand-back" aria-hidden="true"></div>
+      <div class="player-info">
+        <div class="player-name">Partner AI</div>
+        <div class="player-tricks" aria-live="polite"></div>
+        <div class="player-status" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <!-- West (AI) -->
+    <div class="player-area player-area--west" id="player-area-west"
+         aria-label="West player — opponent">
+      <div class="player-hand-back" aria-hidden="true"></div>
+      <div class="player-info">
+        <div class="player-name">West AI</div>
+        <div class="player-tricks" aria-live="polite"></div>
+        <div class="player-status" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <!-- Center trick area -->
+    <div id="trick-center" role="region" aria-label="Current trick">
+      <div class="center-glow-container" aria-hidden="true">
+        <div class="glow-core"></div>
+        <div class="glow-petal petal-1"></div>
+        <div class="glow-petal petal-2"></div>
+        <div class="glow-petal petal-3"></div>
+      </div>
+      <div class="trick-slot trick-slot--north" id="trick-slot-north"
+           aria-label="North's played card">
+        <div class="trick-slot-placeholder" aria-hidden="true"></div>
+      </div>
+      <div class="trick-slot trick-slot--west" id="trick-slot-west"
+           aria-label="West's played card">
+        <div class="trick-slot-placeholder" aria-hidden="true"></div>
+      </div>
+      <div class="trick-slot trick-slot--east" id="trick-slot-east"
+           aria-label="East's played card">
+        <div class="trick-slot-placeholder" aria-hidden="true"></div>
+      </div>
+      <div class="trick-slot trick-slot--south" id="trick-slot-south"
+           aria-label="Your played card">
+        <div class="trick-slot-placeholder" aria-hidden="true"></div>
+      </div>
+
+    </div>
+
+    <!-- East (AI) -->
+    <div class="player-area player-area--east" id="player-area-east"
+         aria-label="East player — opponent">
+      <div class="player-hand-back" aria-hidden="true"></div>
+      <div class="player-info">
+        <div class="player-name">East AI</div>
+        <div class="player-tricks" aria-live="polite"></div>
+        <div class="player-status" aria-live="polite"></div>
+      </div>
+    </div>
+
+  </div><!-- .game-table -->
+
+  <!-- Human hand -->
+  <div id="human-hand-wrapper">
+    <!-- Up card shown during round 1 bidding — sits above the hand in flex flow -->
+    <div id="up-card-area" hidden aria-label="Up card for bidding"></div>
+    <div id="hand-pickup-card" hidden aria-label="Picked up card — click to discard"></div>
+    <div id="human-hand" role="group" aria-label="Your hand" aria-live="polite">
+      <!-- cards inserted by JS -->
+    </div>
+    <!-- Your player info sits just above the controls panel -->
+    <div class="player-area player-area--south" id="player-area-south"
+         aria-label="Your area (South)">
+      <div class="player-info">
+        <div class="player-name">You</div>
+        <div class="player-tricks" aria-live="polite"></div>
+        <div class="player-status" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bidding / action controls -->
+  <div id="controls-panel" role="region" aria-label="Action controls" aria-live="polite">
+    <p id="hand-prompt" aria-live="polite" role="status"></p>
+    <div id="controls-panel-inner"></div>
+  </div>
+
+  <!-- Controls toggle button -->
+  <button id="controls-toggle" aria-label="Toggle action panel" aria-expanded="false">
+    <span class="controls-toggle-chevron" aria-hidden="true"></span>
+    <span id="controls-toggle-badge" hidden aria-hidden="true"></span>
+  </button>
+
+  <!-- Hand result overlay -->
+  <div id="hand-result" hidden aria-hidden="true">
+    <!-- populated by JS -->
+  </div>
+
+  <!-- Activity log -->
+  <div id="activity-log" class="activity-log" aria-label="Activity log" role="log" aria-live="polite">
+    <button class="activity-log-header" id="btn-log-collapse"
+            aria-expanded="true" aria-controls="activity-log-body">
+      <span>Activity</span>
+      <span class="activity-log-chevron" aria-hidden="true"></span>
+    </button>
+    <div class="activity-log-body" id="activity-log-body"></div>
+  </div>
+
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     SCREEN: GAME OVER
+════════════════════════════════════════════════════════════════════════ -->
+<section id="screen-gameover" class="screen" aria-label="Game over"
+         aria-hidden="true">
+  <h2 class="gameover-title" id="gameover-title">Game Over</h2>
+  <p class="gameover-subtitle" id="gameover-subtitle"></p>
+  <div class="gameover-scores" aria-live="polite">
+    <div id="gameover-score-you"></div>
+    <div id="gameover-score-opp"></div>
+  </div>
+  <div class="gameover-actions">
+    <button id="btn-play-again" class="btn btn--primary" autofocus>
+      Play Again
+    </button>
+    <button id="btn-home-again" class="btn btn--ghost">
+      Home
+    </button>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     DIALOG: QUIT CONFIRMATION
+════════════════════════════════════════════════════════════════════════ -->
+<dialog id="dialog-quit" aria-labelledby="quit-dialog-title">
+  <h2 id="quit-dialog-title" class="dialog-title">Quit Game?</h2>
+  <p class="dialog-body">Your progress will be lost and you'll return to the home screen.</p>
+  <div class="dialog-actions">
+    <button id="btn-quit-yes" class="btn btn--danger" autofocus>Quit</button>
+    <button id="btn-quit-no" class="btn btn--ghost">Keep Playing</button>
+  </div>
+</dialog>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     DIALOG: GO ALONE CONFIRMATION
+════════════════════════════════════════════════════════════════════════ -->
+<dialog id="dialog-go-alone" aria-labelledby="alone-dialog-title"
+        aria-describedby="alone-dialog-body">
+  <h2 id="alone-dialog-title" class="dialog-title">Go Alone?</h2>
+  <p id="alone-dialog-body" class="dialog-body">
+    Your partner will sit out this hand. You must take all 5 tricks for
+    <strong>4 points</strong>. If you take 3–4 tricks you still earn 1 point;
+    if you're euchred, opponents get 2.
+  </p>
+  <div class="dialog-actions">
+    <button id="btn-alone-yes" class="btn btn--primary" autofocus>
+      Go Alone (Brave!)
+    </button>
+    <button id="btn-alone-no" class="btn btn--ghost">
+      Play with Partner
+    </button>
+  </div>
+</dialog>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     DIALOG: COMING SOON
+════════════════════════════════════════════════════════════════════════ -->
+<dialog id="dialog-coming-soon" aria-labelledby="soon-title">
+  <span class="coming-soon-icon" aria-hidden="true">🚧</span>
+  <h2 id="soon-title" class="dialog-title">
+    <span id="coming-soon-mode">Mode</span> — Coming Soon
+  </h2>
+  <p class="dialog-body">
+    Multiplayer features are under development. In the meantime, sharpen your
+    game with <strong>Practice vs AI</strong>!
+  </p>
+  <div class="dialog-actions">
+    <button id="btn-close-soon" class="btn btn--primary btn--full" autofocus>
+      Got it
+    </button>
+  </div>
+</dialog>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     DIALOG: RULES OF EUCHRE
+════════════════════════════════════════════════════════════════════════ -->
+<dialog id="dialog-rules" aria-labelledby="rules-title">
+  <h2 id="rules-title" class="dialog-title">Rules of Euchre</h2>
+  <div class="rules-content" tabindex="0" aria-label="Rules text — scrollable">
+    <h3>The Deck</h3>
+    <p>24 cards: 9, 10, J, Q, K, A in all four suits. Four players in two partnerships
+       (North–South vs East–West). Each player gets 5 cards.</p>
+
+    <h3>Trump &amp; Bowers</h3>
+    <ul>
+      <li><strong>Right Bower</strong> — Jack of the trump suit (highest trump).</li>
+      <li><strong>Left Bower</strong> — Jack of the same-color suit as trump (second highest trump, counts as trump).</li>
+      <li>Color pairs: ♥ Hearts ↔ ♦ Diamonds &nbsp;·&nbsp; ♠ Spades ↔ ♣ Clubs</li>
+      <li>Trump order (high→low): Right Bower, Left Bower, A, K, Q, 10, 9</li>
+    </ul>
+
+    <h3>Bidding — Round 1</h3>
+    <p>The dealer turns up a card (the "up card"). Starting left of dealer, each player
+       may <strong>order it up</strong> (accepting that suit as trump — dealer picks up the
+       card and discards) or <strong>pass</strong>. When ordering up, a player may also
+       <strong>go alone</strong> (partner sits out). The dealer says "pick it up" or
+       "turn it down."</p>
+
+    <h3>Bidding — Round 2</h3>
+    <p>If all four pass in round 1, each player may <strong>name any suit</strong> as trump
+       (except the turned-down suit) or pass. The dealer is <em>stuck</em> — they must
+       name a suit if all others pass.</p>
+
+    <h3>Playing Tricks</h3>
+    <ul>
+      <li>You <strong>must follow suit</strong> if you can. The Left Bower follows trump,
+          not its printed suit.</li>
+      <li>Highest trump wins. If no trump is played, highest card of the led suit wins.</li>
+      <li>Trick winner leads the next trick.</li>
+    </ul>
+
+    <h3>Scoring</h3>
+    <ul>
+      <li>Makers take 3–4 tricks → <strong>1 point</strong></li>
+      <li>Makers take all 5 (march) → <strong>2 points</strong></li>
+      <li>Lone player takes all 5 → <strong>4 points</strong></li>
+      <li>Makers fail to take 3 (euchred) → <strong>opponents get 2 points</strong></li>
+    </ul>
+    <p>First team to reach the target score (5, 7, or 10) wins.</p>
+  </div>
+  <div class="dialog-actions" style="margin-top:.5rem">
+    <button id="btn-close-rules" class="btn btn--primary btn--full" autofocus>
+      Got it
+    </button>
+  </div>
+</dialog>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     SCREEN: PRIVATE GAME ENTRY
+════════════════════════════════════════════════════════════════════════ -->
+<section id="screen-private" class="screen" aria-label="Private game setup"
+         aria-hidden="true">
+  <div class="setup-card">
+    <h2 class="setup-title">Private Game</h2>
+
+    <div class="form-group">
+      <label class="form-label" for="private-name">Your name</label>
+      <input id="private-name" class="form-input" type="text" value="You"
+             maxlength="20" autocomplete="nickname">
+    </div>
+
+    <button id="btn-create-room" class="btn btn--primary btn--full" autofocus>
+      + Create a Room
+    </button>
+
+    <div class="or-divider"><span>or join with a code</span></div>
+
+    <div class="join-row">
+      <input id="join-code-input" class="form-input join-code-input"
+             type="text" placeholder="XXXXXX" maxlength="6"
+             autocomplete="off" spellcheck="false"
+             aria-label="Enter 6-character room code">
+      <button id="btn-join-room" class="btn btn--secondary">Join</button>
+    </div>
+
+    <p id="private-error" class="private-error" role="alert" aria-live="assertive"></p>
+
+    <button id="btn-back-private" class="btn btn--ghost btn--full"
+            style="margin-top:.25rem">← Back</button>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     SCREEN: LOBBY
+════════════════════════════════════════════════════════════════════════ -->
+<section id="screen-lobby" class="screen" aria-label="Game lobby"
+         aria-hidden="true">
+  <div class="setup-card lobby-card">
+
+    <div class="lobby-header">
+      <h2 class="setup-title" style="margin:0">Waiting Room</h2>
+      <div class="room-code-box" aria-label="Room code">
+        <span class="room-code-label">Room Code</span>
+        <button id="lobby-code-btn" class="room-code-value"
+                aria-label="Copy room code">------</button>
+        <span class="copy-hint" id="copy-hint">click to copy</span>
+      </div>
+    </div>
+
+    <div class="lobby-seats" role="list" aria-label="Players"
+         id="lobby-seats">
+      <!-- populated by JS -->
+    </div>
+
+    <fieldset class="form-group" id="lobby-target-group">
+      <legend class="form-label">Game to</legend>
+      <div class="radio-group" role="radiogroup">
+        <label class="radio-option">
+          <input type="radio" name="lobby-target" value="5"> 5 pts
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="lobby-target" value="7"> 7 pts
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="lobby-target" value="10" checked> 10 pts
+        </label>
+      </div>
+    </fieldset>
+
+    <p id="lobby-status" class="lobby-status" aria-live="polite"></p>
+
+    <button id="btn-start-private" class="btn btn--primary btn--full"
+            disabled autofocus>
+      Start Game
+    </button>
+    <button id="btn-leave-lobby" class="btn btn--ghost btn--full">
+      Leave Room
+    </button>
+
+  </div>
+</section>
+
+<!-- ── Scripts ───────────────────────────────────────────────────────────── -->
+<script src="js/config.js"></script>
+<script src="js/euchre.js" defer></script>
+<script src="js/ai.js" defer></script>
+<script src="js/network.js" defer></script>
+<script src="js/app.js" defer></script>
+</body>
+</html>

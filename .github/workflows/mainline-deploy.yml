@@ -34,4 +34,4 @@ jobs:
       - name: Deploy
         run: |
           ssh ${{ secrets.MAINLINE_SSH_USER }}@${{ secrets.MAINLINE_SSH_HOST }} \
-            "mainline deploy --repo ${{ github.repository }} --commit ${{ github.sha }}"
+            "${SHELL:-zsh} -lc 'mainline deploy --repo ${{ github.repository }} --commit ${{ github.sha }}'"

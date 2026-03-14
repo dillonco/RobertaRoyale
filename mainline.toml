@@ -1,0 +1,23 @@
+[project]
+name = "RobertaRoyale"
+repo = "dillonco/RobertaRoyale"
+branch = "main"
+runtime = "nodejs"
+
+[app]
+port = 3000
+start_command = "npm start"
+health_check_path = "/health"
+health_check_timeout_secs = 60
+deploy_dir = "/Users/nix/mainline-deployments/RobertaRoyale-2"
+
+[cloudflare]
+hostname = "api.robertaroyale.com"
+tunnel_name = "mainline-RobertaRoyale"
+ssh_hostname = "ssh.robertaroyale.com"
+
+[ssh]
+host = "ssh.robertaroyale.com"
+user = "nix"
+public_key_path = "/Users/nix/.mainline/keys/RobertaRoyale_deploy_key.pub"
+private_key_path = "/Users/nix/.mainline/keys/RobertaRoyale_deploy_key"

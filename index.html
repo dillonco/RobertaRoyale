@@ -423,7 +423,7 @@
 
     <div class="form-group">
       <label class="form-label" for="private-name">Your name</label>
-      <input id="private-name" class="form-input" type="text" value="You"
+      <input id="private-name" class="form-input" type="text" value=""
              maxlength="20" autocomplete="nickname">
     </div>
 
@@ -470,7 +470,7 @@
       <!-- populated by JS -->
     </div>
 
-    <fieldset class="form-group" id="lobby-target-group">
+    <fieldset class="form-group" id="lobby-target-group" hidden>
       <legend class="form-label">Game to</legend>
       <div class="radio-group" role="radiogroup">
         <label class="radio-option">
@@ -488,7 +488,7 @@
     <p id="lobby-status" class="lobby-status" aria-live="polite"></p>
 
     <button id="btn-start-private" class="btn btn--primary btn--full"
-            disabled autofocus>
+            disabled hidden autofocus>
       Start Game
     </button>
     <button id="btn-leave-lobby" class="btn btn--ghost btn--full">

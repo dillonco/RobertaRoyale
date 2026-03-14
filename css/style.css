@@ -372,16 +372,17 @@ fieldset.form-group { border: none; padding: 0; }
 }
 
 #trump-badge {
-  display: flex; align-items: center; gap: .5rem;
+  display: flex; flex-direction: column; align-items: center; gap: .1rem;
   background: rgba(147,240,5,.08);
   border: 1px solid rgba(147,240,5,.25);
-  border-radius: 9999px;
-  padding: .28rem .85rem;
+  border-radius: 12px;
+  padding: .3rem .85rem;
+  text-align: center;
 }
 #trump-badge[hidden] { display: none; }
 .trump-label { color: var(--text-muted); font-size: .6rem; text-transform: uppercase; letter-spacing: .08em; }
-.trump-suit  { color: var(--accent); font-weight: 600; font-family: var(--font-ui); font-size: .9rem; }
-.trump-maker { font-size: .6rem; color: var(--text-muted); }
+.trump-suit  { color: var(--accent); font-weight: 600; font-family: var(--font-ui); font-size: .9rem; line-height: 1.1; }
+.trump-maker { font-size: .6rem; color: var(--text-muted); white-space: nowrap; }
 
 /* Scoreboard pill */
 #score-display {
@@ -1329,20 +1330,11 @@ dialog::backdrop {
   /* Player name pills */
   .player-name { max-width: 72px; overflow: hidden; text-overflow: ellipsis; }
   .player-info { padding: 4px 8px; gap: 6px; }
+  .player-area--west .player-info,
+  .player-area--east .player-info { max-width: 100%; overflow: hidden; }
+  .player-area--west .player-name,
+  .player-area--east .player-name { max-width: 48px; }
 
-  /* Activity log — hidden by default, shown via toggle */
-  .activity-log {
-    display: none;
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    width: auto;
-    max-height: 40vh;
-    border-radius: 12px 12px 0 0;
-    z-index: 100;
-  }
-  .activity-log--open { display: flex !important; pointer-events: auto; }
-  /* When open on mobile, always show body regardless of collapsed state */
-  .activity-log--open .activity-log-body { display: flex !important; }
 }
 
 /* Show log toggle only on mobile */
@@ -1358,6 +1350,8 @@ dialog::backdrop {
   .mode-grid { gap: .5rem; }
   .mode-card { padding: 1rem .75rem; }
   #human-hand { height: 140px; padding: 0 8px; }
+  .player-area--west .player-name,
+  .player-area--east .player-name { max-width: 36px; }
 }
 
 @media (min-width: 768px) {
@@ -1603,6 +1597,19 @@ dialog::backdrop {
   z-index: 20;
   overflow: hidden;
   pointer-events: none;
+}
+@media (max-width: 480px) {
+  .activity-log {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    width: auto;
+    max-height: 40vh;
+    border-radius: 12px 12px 0 0;
+    z-index: 100;
+  }
+  .activity-log--open { display: flex !important; pointer-events: auto; }
+  .activity-log--open .activity-log-body { display: flex !important; }
 }
 .activity-log-header {
   all: unset;

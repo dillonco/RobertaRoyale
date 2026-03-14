@@ -192,6 +192,7 @@ function handleDisconnect(ws) {
 
   if (!room.gameState) {
     // Pre-game: remove and reassign seats
+    const leftName = room.players[idx].name;
     room.players.splice(idx, 1);
     room.players.forEach((p, i) => { p.seatIndex = i; });
     if (room.players.length === 0) { rooms.delete(room.code); return; }
@@ -199,7 +200,7 @@ function handleDisconnect(ws) {
       room.hostId = room.players[0].id;
       broadcast(room, { type: 'host_changed', hostId: room.hostId });
     }
-    broadcast(room, { type: 'player_left', players: playerList(room) });
+    broadcast(room, { type: 'player_left', players: playerList(room), name: leftName });
   } else {
     // In-game: mark seat as AI-controlled
     const p = room.players[idx];

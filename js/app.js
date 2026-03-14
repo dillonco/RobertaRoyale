@@ -14,6 +14,23 @@
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  // ── Era name generator ───────────────────────────────────────────────────
+
+  const ERA_NAMES = [
+    'Roberta','Beverly','Shirley','Marlene','Lorraine','Phyllis','Dolores',
+    'Norma','Gloria','Joanne','Carolyn','Marilyn','Patricia','Sandra','Judith',
+    'Barbara','Donna','Linda','Sharon','Karen','Susan','Nancy','Diane','Carol',
+    'Janet','Kathleen','Margaret','Dorothy','Ruth','Helen','Betty','Frances',
+    'Geraldine','Evelyn','Vivian','Audrey','Lois','Elaine','Bonnie','Janice',
+    'Gail','Brenda','Cheryl','Sheila','Maureen','Colleen','Irene','Edith',
+    'Joyce','Bernice','Mildred','Arlene','Constance','Wanda','Velma','Darlene',
+    'Rhonda','Glenda','Jeanette','Rosemary','Alberta','Wilma','Thelma','Doreen'
+  ];
+
+  function randomEraName() {
+    return ERA_NAMES[Math.floor(Math.random() * ERA_NAMES.length)];
+  }
+
   // ── App State ────────────────────────────────────────────────────────────
 
   let gameState    = null;
@@ -1087,11 +1104,12 @@
   // ── Private Game Screen ───────────────────────────────────────────────────
 
   function initPrivateScreen() {
+    qs('#private-name').value = randomEraName();
     qs('#btn-back-private').addEventListener('click', () => showScreen('screen-home'));
 
     qs('#btn-create-room').addEventListener('click', async () => {
       setPrivateError('');
-      const name = (qs('#private-name').value.trim()) || 'You';
+      const name = (qs('#private-name').value.trim()) || randomEraName();
       qs('#btn-create-room').disabled = true;
       try {
         await Network.connect();
@@ -1105,7 +1123,7 @@
 
     qs('#btn-join-room').addEventListener('click', async () => {
       setPrivateError('');
-      const name = (qs('#private-name').value.trim()) || 'You';
+      const name = (qs('#private-name').value.trim()) || randomEraName();
       const code = qs('#join-code-input').value.trim().toUpperCase();
       if (code.length !== 6) { setPrivateError('Enter the 6-character room code.'); return; }
       qs('#btn-join-room').disabled = true;
@@ -1140,11 +1158,6 @@
     renderLobbySeats(players);
     updateLobbyStartBtn(players);
 
-    if (!isHost) {
-      const tg = qs('#lobby-target-group');
-      if (tg) tg.hidden = true;
-    }
-
     showScreen('screen-lobby');
   }
 
@@ -1175,6 +1188,8 @@
     if (!btn) return;
     if (!isHost) { btn.hidden = true; return; }
     btn.hidden = false;
+    const tg = qs('#lobby-target-group');
+    if (tg) tg.hidden = false;
     const count = players.filter(p => p.connected !== false).length;
     btn.disabled = count < 2;
     btn.textContent = count < 2
@@ -1235,6 +1250,9 @@
     Network.on('player_left', msg => {
       renderLobbySeats(msg.players);
       updateLobbyStartBtn(msg.players);
+      const name = msg.name || 'A player';
+      logActivity(`${escHtml(name)} left the lobby`);
+      announce(`${name} left the room`);
     });
 
     Network.on('host_changed', msg => {

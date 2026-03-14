@@ -92,7 +92,7 @@
 
     <div class="form-group">
       <label class="form-label" for="setup-name">Your name</label>
-      <input id="setup-name" class="form-input" type="text" value="You"
+      <input id="setup-name" class="form-input" type="text" value=""
              maxlength="20" autocomplete="nickname"
              aria-describedby="setup-name-hint">
       <span id="setup-name-hint" class="sr-only">Up to 20 characters</span>
@@ -130,6 +130,14 @@
       </div>
     </fieldset>
 
+    <fieldset class="form-group">
+      <legend class="form-label">House rules</legend>
+      <label class="toggle-option">
+        <input type="checkbox" id="setup-tram" checked>
+        <span class="toggle-label">TRAM — auto-play "The Rest Are Mine"</span>
+      </label>
+    </fieldset>
+
     <div class="setup-actions">
       <button id="btn-start-game" class="btn btn--primary btn--full" autofocus>
         Deal Cards
@@ -148,6 +156,14 @@
          aria-hidden="true">
 
   <div class="ambient-line" aria-hidden="true"></div>
+
+  <!-- TRAM banner -->
+  <div id="tram-banner" hidden aria-live="assertive" aria-atomic="true">
+    <div class="tram-banner-inner">
+      <span class="tram-icon" aria-hidden="true">🃏</span>
+      <span id="tram-banner-text"></span>
+    </div>
+  </div>
 
   <!-- Top bar: title / trump / score -->
   <div class="game-topbar" role="banner">
@@ -179,12 +195,12 @@
     <!-- North (Partner AI) -->
     <div class="player-area player-area--north" id="player-area-north"
          aria-label="North player — your partner">
-      <div class="player-hand-back" aria-hidden="true"></div>
       <div class="player-info">
         <div class="player-name">Partner AI</div>
         <div class="player-tricks" aria-live="polite"></div>
         <div class="player-status" aria-live="polite"></div>
       </div>
+      <div class="player-hand-back" aria-hidden="true"></div>
     </div>
 
     <!-- West (AI) -->
@@ -223,6 +239,7 @@
         <div class="trick-slot-placeholder" aria-hidden="true"></div>
       </div>
 
+      <div id="trick-led-indicator" hidden aria-live="polite"></div>
     </div>
 
     <!-- East (AI) -->
@@ -256,6 +273,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Mobile card confirm button (touch two-tap flow) -->
+  <button id="card-confirm-btn" hidden aria-label="Confirm card play">Confirm</button>
 
   <!-- Bidding / action controls -->
   <div id="controls-panel" role="region" aria-label="Action controls" aria-live="polite">

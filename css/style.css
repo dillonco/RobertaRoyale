@@ -258,6 +258,22 @@ fieldset.form-group { border: none; padding: 0; }
   color: var(--text);
 }
 
+.toggle-option {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  cursor: pointer;
+}
+.toggle-option input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.toggle-label { font-size: .85rem; color: var(--text-muted); }
+.toggle-option:has(input:checked) .toggle-label { color: var(--accent); }
+
 .setup-actions { display: flex; flex-direction: column; gap: .75rem; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -432,13 +448,14 @@ fieldset.form-group { border: none; padding: 0; }
   border-radius: 10px;
   transition: background var(--t-med);
   position: relative;
+  min-width: 0;
 }
 .player-area--active {
   background: transparent;
 }
 .player-area--sitting-out { opacity: .4; }
 
-.player-area--north { grid-area: north; flex-direction: row; justify-content: center; align-self: end; }
+.player-area--north { grid-area: north; flex-direction: column; align-items: center; justify-content: center; align-self: end; }
 .player-area--south { flex-direction: row; justify-content: center; align-items: center; width: 100%; }
 .player-area--west  { grid-area: west; }
 .player-area--east  { grid-area: east; }
@@ -460,7 +477,7 @@ fieldset.form-group { border: none; padding: 0; }
 }
 .player-area--active .player-name { color: var(--accent); }
 
-.player-name  { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 4px; }
+.player-name  { font-size: 13px; font-weight: 500; color: var(--text); display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; }
 .player-tricks{ font-size: .65rem; color: var(--text-muted); min-height: .85rem; }
 .player-status {
   font-size: .65rem; color: var(--text-muted); min-height: .85rem;
@@ -533,6 +550,21 @@ fieldset.form-group { border: none; padding: 0; }
   display: flex; align-items: center; justify-content: center;
 }
 
+/* Maker chip — who called trump */
+.maker-chip {
+  width: 16px; height: 16px;
+  flex-shrink: 0;
+  background: #1a1a1a;
+  border: 1.5px solid #e8a020;
+  border-radius: 50%;
+  font-size: .6rem;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+.maker-chip.red   { color: var(--card-red); }
+.maker-chip.black { color: #ddd; }
+
 /* Game status text overlay */
 .game-status-text {
   position: absolute;
@@ -551,20 +583,10 @@ fieldset.form-group { border: none; padding: 0; }
 /* ── Center Trick Area ────────────────────────────────────────────────────── */
 #trick-center {
   grid-area: center;
-  display: grid;
-  grid-template-areas:
-    ". north-slot ."
-    "west-slot . east-slot"
-    ". south-slot .";
-  grid-template-columns: auto auto auto;
-  grid-template-rows: auto auto auto;
-  align-items: center;
-  justify-items: center;
-  justify-content: center;
-  align-content: center;
-  gap: 0;
-  padding: .5rem;
+  display: block;
   position: relative;
+  min-height: 270px;
+  padding: .5rem;
 }
 
 /* Center glow */
@@ -586,21 +608,65 @@ fieldset.form-group { border: none; padding: 0; }
 
 .trick-slot {
   display: flex; align-items: center; justify-content: center;
-  position: relative; z-index: 1;
+  position: absolute;
+  top: 50%;
+  left: 50%;
 }
-.trick-slot--north { grid-area: north-slot; }
-.trick-slot--south { grid-area: south-slot; }
-.trick-slot--west  { grid-area: west-slot; }
-.trick-slot--east  { grid-area: east-slot; }
+.trick-slot--north {
+  transform: translate(calc(-50% - 4px), calc(-50% - 82px)) rotate(-4deg);
+  z-index: 4;
+}
+.trick-slot--south {
+  transform: translate(calc(-50% + 6px), calc(-50% + 76px)) rotate(5deg);
+  z-index: 1;
+}
+.trick-slot--west {
+  transform: translate(calc(-50% - 96px), calc(-50% + 8px)) rotate(-20deg);
+  z-index: 3;
+}
+.trick-slot--east {
+  transform: translate(calc(-50% + 90px), calc(-50% + 4px)) rotate(19deg);
+  z-index: 2;
+}
 
 .trick-slot-placeholder {
-  width: 54px; height: 78px;
+  width: 64px; height: 92px;
   border: 2px dashed rgba(255,255,255,.1);
   border-radius: var(--r-card);
+}
+.trick-slot .card--small.card--face {
+  width: 58px;
+  height: 82px;
 }
 
 .trick-slot .card--small .card-rank { font-size: 1rem; }
 .trick-slot .card--small .card-suit-sm { font-size: .9rem; }
+
+/* Trump indicator inside trick-center */
+#trick-led-indicator {
+  position: absolute;
+  bottom: .2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .3rem;
+  white-space: nowrap;
+}
+.trick-led-label {
+  font-size: .6rem;
+  font-weight: 600;
+  letter-spacing: .07em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.trick-led-suit {
+  font-size: .85rem;
+  font-weight: 600;
+}
+.trick-led-suit.red  { color: var(--card-red); }
+.trick-led-suit.black { color: var(--text); }
 
 /* Card slide-in animations — fire once when each card is inserted into its slot */
 @keyframes slide-from-bottom {
@@ -882,6 +948,10 @@ fieldset.form-group { border: none; padding: 0; }
   gap: .35rem;
   pointer-events: none;
   z-index: 10;
+  transition: bottom .25s cubic-bezier(.25,.46,.45,.94);
+}
+#human-hand-wrapper.panel-open {
+  bottom: 220px;
 }
 #human-hand-wrapper > * {
   pointer-events: auto;
@@ -928,17 +998,95 @@ fieldset.form-group { border: none; padding: 0; }
 }
 #human-hand button { margin: 0 -10px; transform-origin: bottom center; transition: transform .2s cubic-bezier(.25,.46,.45,.94), box-shadow .25s; }
 
-/* Playable cards in hand: lime glow + scale (transform set via JS per-hand-size) */
+/* All hand cards lift on hover/touch — composes with the JS fan transform via CSS var */
+#human-hand button.card--face:hover,
+#human-hand button.card--face:active {
+  transform: var(--fan-transform) translateY(-12px);
+  z-index: 10 !important;
+}
+
+/* Playable cards in hand: lime glow + scale */
 #human-hand .card--playable {
   box-shadow: 0 0 0 2px rgba(147,240,5,.75), 0 0 18px rgba(147,240,5,.35), 0 6px 16px rgba(0,0,0,.35);
   z-index: 6 !important;
 }
 #human-hand .card--playable:hover {
-  transform: translateY(-28px) scale(1.09) !important;
+  transform: var(--fan-transform) translateY(-28px) scale(1.09);
   z-index: 10 !important;
-  box-shadow: 0 0 0 2px rgba(147,240,5,.9), 0 0 24px rgba(147,240,5,.5), 0 18px 32px rgba(0,0,0,.45) !important;
+  box-shadow: 0 0 0 2px rgba(147,240,5,.9), 0 0 24px rgba(147,240,5,.5), 0 18px 32px rgba(0,0,0,.45);
 }
-#human-hand .card--playable:active { transform: translateY(-8px) scale(1.04) !important; }
+#human-hand .card--playable:active { transform: var(--fan-transform) translateY(-8px) scale(1.04); }
+
+/* Mobile two-tap: selected card stays lifted until confirmed */
+#human-hand .card--selected {
+  transform: var(--fan-transform) translateY(-28px) scale(1.09) !important;
+  z-index: 10 !important;
+  box-shadow: 0 0 0 2px rgba(147,240,5,.9), 0 0 28px rgba(147,240,5,.55), 0 18px 32px rgba(0,0,0,.45) !important;
+}
+
+/* ── TRAM banner ─────────────────────────────────────────────────────────── */
+#tram-banner {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 200;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#tram-banner[hidden] { display: none; }
+.tram-banner-inner {
+  background: rgba(3,8,5,.93);
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  padding: .75rem 1.8rem;
+  text-align: center;
+  box-shadow: 0 0 0 1px rgba(147,240,5,.2), 0 0 40px rgba(147,240,5,.25), 0 8px 32px rgba(0,0,0,.6);
+}
+.tram-icon { font-size: 1.4rem; display: block; margin-bottom: .25rem; }
+#tram-banner-text {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+@keyframes tram-pop {
+  0%   { opacity: 0; transform: scale(.75); }
+  18%  { opacity: 1; transform: scale(1.06); }
+  28%  { transform: scale(1); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(.95); }
+}
+#tram-banner:not([hidden]) .tram-banner-inner {
+  animation: tram-pop 2.8s cubic-bezier(.25,.46,.45,.94) forwards;
+}
+
+/* Mobile card confirm button */
+#card-confirm-btn {
+  position: absolute;
+  bottom: 108px;
+  right: 18px;
+  z-index: 50;
+  min-width: 44px;
+  min-height: 44px;
+  padding: .45rem 1.1rem;
+  background: var(--accent);
+  color: #000;
+  font-size: .85rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.5);
+  cursor: pointer;
+  transition: opacity .15s, transform .1s;
+}
+#card-confirm-btn:active {
+  transform: scale(.95);
+  opacity: .85;
+}
+#card-confirm-btn[hidden] { display: none; }
 
 /* ── Controls Panel ───────────────────────────────────────────────────────── */
 #controls-panel {
@@ -1276,7 +1424,7 @@ dialog::backdrop {
 ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
   .game-table {
-    grid-template-columns: 60px 1fr 60px;
+    grid-template-columns: 70px 1fr 70px;
     padding: .3rem;
     gap: .25rem;
   }
@@ -1285,7 +1433,9 @@ dialog::backdrop {
   .card-center-suit { font-size: 1.2rem; }
   .card--small .card-center-suit { font-size: .9rem; }
 
-  .trick-slot-placeholder { width: 42px; height: 60px; }
+  #trick-center { min-height: 230px; }
+  .trick-slot-placeholder { width: 52px; height: 74px; }
+  .trick-slot .card--small.card--face { width: 50px; height: 72px; }
 
   /* Bid buttons — stack vertically for easy tapping */
   .bid-buttons { flex-direction: column; align-items: stretch; gap: .35rem; }
@@ -1320,7 +1470,7 @@ dialog::backdrop {
   #controls-panel { padding: .35rem .5rem; }
 
   /* Player name pills */
-  .player-name { max-width: 72px; overflow: hidden; text-overflow: ellipsis; }
+  .player-name { max-width: 96px; }
   .player-info { padding: 4px 8px; gap: 6px; }
 
   /* East/west: stack name above tricks, constrain to column width */
@@ -1342,6 +1492,12 @@ dialog::backdrop {
     height: 26px;
     margin-top: -10px;
   }
+
+  /* Shrink the glow container so it stays within game-table bounds.
+     420px would extend ~406px from the left edge on a 393px viewport,
+     causing iOS Safari to inflate the game-table scroll-width and push
+     the east column off screen. 180px radius = 90px, well within bounds. */
+  .center-glow-container { width: 180px; height: 180px; }
   .player-area--west .player-name,
   .player-area--east .player-name {
     max-width: 100%;
@@ -1362,7 +1518,7 @@ dialog::backdrop {
 }
 
 @media (max-width: 360px) {
-  .game-table { grid-template-columns: 52px 1fr 52px; }
+  .game-table { grid-template-columns: 62px 1fr 62px; }
   .player-area--west .player-hand-back .card--back,
   .player-area--east .player-hand-back .card--back {
     width: 16px;
@@ -1382,7 +1538,9 @@ dialog::backdrop {
   .card-center-suit { font-size: 1.8rem; }
   .card--small.card--face { width: 54px; height: 78px; }
   .card--small .card-center-suit { font-size: 1.3rem; }
-  .trick-slot-placeholder { width: 54px; height: 78px; }
+  #trick-center { min-height: 295px; }
+  .trick-slot-placeholder { width: 64px; height: 92px; }
+  .trick-slot .card--small.card--face { width: 64px; height: 92px; }
   .mode-grid { max-width: 560px; }
   .player-hand-back .card--back { width: 34px; height: 50px; margin-left: -12px; }
   .player-area--west .player-hand-back .card--back,
@@ -1390,6 +1548,7 @@ dialog::backdrop {
 }
 
 @media (min-width: 1024px) {
+  #trick-center { min-height: 320px; }
   .game-table { grid-template-columns: 140px 1fr 140px; }
   .card--face { width: 70px; height: 100px; }
   .card-center-suit { font-size: 2rem; }
@@ -1402,7 +1561,8 @@ dialog::backdrop {
   .card-center-suit { font-size: 3rem; }
   .card--small.card--face { width: 84px; height: 120px; }
   .card--small .card-center-suit { font-size: 2rem; }
-  .trick-slot-placeholder { width: 84px; height: 120px; }
+  .trick-slot-placeholder { width: 94px; height: 134px; }
+  .trick-slot .card--small.card--face { width: 94px; height: 134px; }
   .player-hand-back .card--back { width: 48px; height: 70px; margin-left: -16px; }
   .player-area--west .player-hand-back .card--back,
   .player-area--east .player-hand-back .card--back { margin-left: 0; }
@@ -1618,7 +1778,6 @@ dialog::backdrop {
   flex-direction: column;
   z-index: 20;
   overflow: hidden;
-  pointer-events: none;
 }
 @media (max-width: 480px) {
   .activity-log {
@@ -1700,6 +1859,10 @@ dialog::backdrop {
 .activity-log-entry--trick {
   color: var(--accent);
   font-weight: 500;
+}
+.trick-winner-card {
+  color: var(--text);
+  font-weight: 700;
 }
 .activity-log-entry--score {
   color: #c5f06a;

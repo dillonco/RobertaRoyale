@@ -34,9 +34,13 @@
   // ── App State ────────────────────────────────────────────────────────────
 
   let gameState    = null;
+  let selectedCardBtn = null;  // mobile two-tap: card awaiting confirmation
   let aiDifficulty = 'normal';
-  let playerName   = 'You';
+  let playerName   = '';
   let aiPending    = false;   // Prevent double-scheduling
+  let tramEnabled  = true;    // House rule: auto-play TRAM sequences
+  let tramActive   = false;   // Currently inside a TRAM auto-play
+  let tramSeat     = null;    // Who called TRAM
   let _lastDealKey      = null;
   let _isDealAnim       = false;
   let _lastTricksPlayed = -1;
@@ -98,12 +102,13 @@
     if (el) { el.textContent = ''; requestAnimationFrame(() => { el.textContent = msg; }); }
   }
 
-  function logActivity(msg, type = '') {
+  function logActivity(msg, type = '', html = false) {
     const body = qs('#activity-log-body');
     if (!body) return;
     const entry = document.createElement('div');
     entry.className = 'activity-log-entry' + (type ? ` activity-log-entry--${type}` : '');
-    entry.textContent = msg;
+    if (html) entry.innerHTML = msg;
+    else entry.textContent = msg;
     body.appendChild(entry);
     body.scrollTop = body.scrollHeight;
   }
@@ -210,21 +215,25 @@
   // ── Setup Screen ─────────────────────────────────────────────────────────
 
   function initSetup() {
+    qs('#setup-name').value = randomEraName();
     qs('#btn-start-game').addEventListener('click', startPracticeGame);
     qs('#btn-back-setup').addEventListener('click', () => showScreen('screen-home'));
     qs('#setup-name').addEventListener('input', e => {
-      playerName = e.target.value.trim() || 'You';
+      playerName = e.target.value.trim() || randomEraName();
     });
   }
 
   function startPracticeGame() {
-    playerName   = (qs('#setup-name').value.trim()) || 'You';
+    playerName   = (qs('#setup-name').value.trim()) || randomEraName();
     aiDifficulty = qs('input[name="difficulty"]:checked').value;
+    tramEnabled  = qs('#setup-tram').checked;
     const target = parseInt(qs('input[name="target"]:checked').value, 10);
 
     // Reset multiplayer state for solo play
     multiplayerMode = false;
     mySeatIndex     = 0;
+    tramActive      = false;
+    tramSeat        = null;
 
     const names = [playerName, 'West AI', 'Partner AI', 'East AI'];
     _prevScores = [0, 0];
@@ -311,13 +320,6 @@
       playDealAnimation(false);
     }
 
-    // Detect between-trick transitions
-    if (s.phase === P.PLAYING && s.currentTrick.length === 0 &&
-        s.tricksPlayed > 0 && s.tricksPlayed !== _lastTricksPlayed) {
-      _lastTricksPlayed = s.tricksPlayed;
-      playDealAnimation(true);
-    }
-
     renderScore(s);
     renderTrumpBadge(s);
     renderPlayerAreas(s);
@@ -325,6 +327,7 @@
     renderHumanHand(s);
     renderControls(s);
     renderDealerChip(s);
+    renderMakerChip(s);
     if (!multiplayerMode) persistSave();
   }
 
@@ -382,6 +385,21 @@
       chip.title = 'Dealer';
       chip.setAttribute('aria-label', 'Dealer');
       chip.textContent = 'D';
+      const nameEl = qs('.player-name', area);
+      (nameEl || area).appendChild(chip);
+    }
+  }
+
+  function renderMakerChip(s) {
+    qsa('.maker-chip').forEach(el => el.remove());
+    if (s.maker === null || !s.trump) return;
+    const area = qs(`.player-area--${seatToPos(s.maker)}`);
+    if (area) {
+      const chip = document.createElement('div');
+      chip.className = `maker-chip ${E.SUIT_COLOR[s.trump]}`;
+      chip.title = `Called ${s.trump} trump`;
+      chip.setAttribute('aria-label', `Called ${s.trump} trump`);
+      chip.textContent = E.SUIT_SYMBOL[s.trump];
       const nameEl = qs('.player-name', area);
       (nameEl || area).appendChild(chip);
     }
@@ -524,6 +542,19 @@
         upCardEl.hidden = true;
       }
     }
+
+    // Led suit indicator — hide immediately on trick end or when no card has been led
+    const ledEl = qs('#trick-led-indicator');
+    if (ledEl) {
+      if (s.phase === P.PLAYING && s.ledSuit && s.currentTrick.length > 0) {
+        const suitName = s.ledSuit.charAt(0).toUpperCase() + s.ledSuit.slice(1);
+        ledEl.innerHTML = `<span class="trick-led-label">LED</span><span class="trick-led-suit ${E.SUIT_COLOR[s.ledSuit]}">${E.SUIT_SYMBOL[s.ledSuit]} ${suitName}</span>`;
+        ledEl.hidden = false;
+      } else {
+        ledEl.hidden = true;
+        ledEl.innerHTML = '';
+      }
+    }
   }
 
   function applyHandFan(handEl) {
@@ -538,12 +569,14 @@
       const playable = btn.classList.contains('card--playable');
       const y       = playable ? yBase - 6 : yBase;
       const scale   = playable ? ' scale(1.07)' : '';
-      btn.style.transform = `rotate(${rot}deg) translateY(${y}px)${scale}`;
+      btn.style.setProperty('--fan-transform', `rotate(${rot}deg) translateY(${y}px)${scale}`);
+      btn.style.transform = 'var(--fan-transform)';
       btn.style.zIndex    = String(i + 1);
     });
   }
 
   function renderHumanHand(s) {
+    clearCardSelection();
     const handEl    = qs('#human-hand');
     const pickupEl  = qs('#hand-pickup-card');
     if (!handEl) return;
@@ -590,9 +623,27 @@
     }
 
     // Wire click handlers on both fan and pickup slot
+    const isTouch = window.matchMedia('(hover: none)').matches;
     const wireClicks = container => {
       qsa('button.card--playable', container).forEach(btn => {
-        btn.addEventListener('click', () => handleCardClick(btn));
+        btn.addEventListener('click', () => {
+          if (isTouch) {
+            if (selectedCardBtn === btn) {
+              // Second tap — confirm and play
+              clearCardSelection();
+              handleCardClick(btn);
+            } else {
+              // First tap — select (lift) the card
+              clearCardSelection();
+              selectedCardBtn = btn;
+              btn.classList.add('card--selected');
+              const confirmBtn = qs('#card-confirm-btn');
+              if (confirmBtn) confirmBtn.hidden = false;
+            }
+          } else {
+            handleCardClick(btn);
+          }
+        });
         btn.addEventListener('keydown', e => {
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick(btn); }
         });
@@ -601,6 +652,20 @@
     wireClicks(handEl);
     if (pickupEl) wireClicks(pickupEl);
 
+    // Wire confirm button (touch two-tap flow)
+    const confirmBtn = qs('#card-confirm-btn');
+    if (confirmBtn) {
+      const newConfirmBtn = confirmBtn.cloneNode(true);
+      confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+      newConfirmBtn.addEventListener('click', () => {
+        if (selectedCardBtn) {
+          const btn = selectedCardBtn;
+          clearCardSelection();
+          handleCardClick(btn);
+        }
+      });
+    }
+
     // Prompt text
     const promptEl = qs('#hand-prompt');
     if (promptEl) {
@@ -608,6 +673,15 @@
       else if (isPlay)    promptEl.textContent = 'Your turn — play a card';
       else                promptEl.textContent = '';
     }
+  }
+
+  function clearCardSelection() {
+    if (selectedCardBtn) {
+      selectedCardBtn.classList.remove('card--selected');
+      selectedCardBtn = null;
+    }
+    const confirmBtn = qs('#card-confirm-btn');
+    if (confirmBtn) confirmBtn.hidden = true;
   }
 
   function handleCardClick(btn) {
@@ -653,11 +727,13 @@
   // ── Bidding Controls ─────────────────────────────────────────────────────
 
   function setControlsOpen(open) {
-    const cp     = qs('#controls-panel');
-    const toggle = qs('#controls-toggle');
-    const badge  = qs('#controls-toggle-badge');
+    const cp      = qs('#controls-panel');
+    const toggle  = qs('#controls-toggle');
+    const badge   = qs('#controls-toggle-badge');
+    const wrapper = qs('#human-hand-wrapper');
     if (!cp || !toggle) return;
     cp.classList.toggle('controls-panel--open', open);
+    if (wrapper) wrapper.classList.toggle('panel-open', open);
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     toggle.setAttribute('aria-label', open ? 'Close action panel' : 'Open action panel');
     if (badge) badge.hidden = open;
@@ -719,7 +795,7 @@
         gameState = E.actionOrderUp(s, 0, false);
         renderGame();
         announce(`Trump is ${upSuit}`);
-        logActivity(`You ordered up ${E.SUIT_SYMBOL[upSuit]} ${upSuit} as trump`, 'highlight');
+        logActivity(`You ordered up ${E.SUIT_SYMBOL[upSuit]} ${upSuit} — picking up ${cardStr(s.upCard)}`, 'highlight');
         processGameLoop();
       }
     });
@@ -733,7 +809,7 @@
           gameState = E.actionOrderUp(s, 0, alone);
           renderGame();
           announce(`Trump is ${upSuit}${alone ? ' — you go alone!' : ''}`);
-          logActivity(`You ordered up ${E.SUIT_SYMBOL[upSuit]} ${upSuit}${alone ? ' — go alone!' : ''}`, 'highlight');
+          logActivity(`You ordered up ${E.SUIT_SYMBOL[upSuit]} ${upSuit} — picking up ${cardStr(s.upCard)}${alone ? ' · go alone!' : ''}`, 'highlight');
           processGameLoop();
         }
       }, true);
@@ -821,6 +897,112 @@
     }
   }
 
+  // ── TRAM Detection ───────────────────────────────────────────────────────
+
+  function detectTRAM(s) {
+    if (s.phase !== P.PLAYING || s.currentTrick.length !== 0) return null;
+    const tricksLeft = 5 - s.tricksPlayed;
+    if (tricksLeft < 2) return null;
+
+    const trump = s.trump;
+
+    function cardVal(card, ledSuit) {
+      if (E.effectiveSuit(card, trump) === trump)
+        return 100 + E.trumpStrength(card, trump);
+      if (ledSuit && card.suit === ledSuit)
+        return 10 + E.RANK_VALUE[card.rank];
+      return E.RANK_VALUE[card.rank];
+    }
+
+    function strongest(cards, ledSuit) {
+      return cards.reduce((best, c) =>
+        cardVal(c, ledSuit) > cardVal(best, ledSuit) ? c : best
+      );
+    }
+
+    function weakest(cards, ledSuit) {
+      return cards.reduce((low, c) =>
+        cardVal(c, ledSuit) < cardVal(low, ledSuit) ? c : low
+      );
+    }
+
+    for (let p = 0; p < 4; p++) {
+      if (s.sittingOut === p) continue;
+      if (!s.hands[p] || s.hands[p].length === 0) continue;
+
+      const simHands = s.hands.map(h => h.slice());
+      let leader = s.currentPlayer;
+      let pWinsAll = true;
+
+      for (let t = 0; t < tricksLeft; t++) {
+        if (simHands[leader].length === 0) { pWinsAll = false; break; }
+
+        const leadCard = strongest(simHands[leader], null);
+        const ledSuit  = E.effectiveSuit(leadCard, trump);
+        simHands[leader] = simHands[leader].filter(c => c !== leadCard);
+
+        let bestCard   = leadCard;
+        let bestPlayer = leader;
+
+        for (let i = 1; i < 4; i++) {
+          const seat = (leader + i) % 4;
+          if (s.sittingOut === seat) continue;
+          if (simHands[seat].length === 0) continue;
+
+          const legal = E.getLegalCards(simHands[seat], ledSuit, trump);
+          const isPartner   = (seat % 2) === (p % 2) && seat !== p;
+          const isOpponent  = !isPartner && seat !== p;
+          let play;
+
+          if (seat === p) {
+            // p always plays their strongest card to try to win
+            play = strongest(legal, ledSuit);
+          } else if (isOpponent) {
+            // Opponents play adversarially: strongest card that beats the current
+            // winner if possible; otherwise throw their weakest (keep strong cards
+            // for later tricks where they might beat p).
+            const canBeat = legal.filter(c => E.cardBeats(c, bestCard, ledSuit, trump));
+            play = canBeat.length > 0 ? strongest(canBeat, ledSuit) : weakest(legal, ledSuit);
+          } else {
+            // Partner cooperates: always throw their weakest card so they never
+            // accidentally take the trick away from p.
+            play = weakest(legal, ledSuit);
+          }
+
+          simHands[seat] = simHands[seat].filter(c => c !== play);
+
+          if (E.cardBeats(play, bestCard, ledSuit, trump)) {
+            bestCard   = play;
+            bestPlayer = seat;
+          }
+        }
+
+        if (bestPlayer !== p) { pWinsAll = false; break; }
+        leader = p;
+      }
+
+      if (pWinsAll) return p;
+    }
+
+    return null;
+  }
+
+  function showTRAMBanner(playerName) {
+    const banner  = qs('#tram-banner');
+    const textEl  = qs('#tram-banner-text');
+    if (!banner || !textEl) return;
+
+    textEl.textContent = `${playerName} — TRAM!`;
+    banner.hidden = false;
+
+    // Re-trigger animation by cloning
+    const inner   = banner.querySelector('.tram-banner-inner');
+    const clone   = inner.cloneNode(true);
+    inner.parentNode.replaceChild(clone, inner);
+
+    setTimeout(() => { banner.hidden = true; }, 2800);
+  }
+
   // ── Game Loop ────────────────────────────────────────────────────────────
 
   function processGameLoop() {
@@ -833,21 +1015,49 @@
 
     // After trick ends, pause then continue
     if (phase === P.TRICK_END) {
+      const ledEl = qs('#trick-led-indicator');
+      if (ledEl) { ledEl.hidden = true; ledEl.innerHTML = ''; }
       const trickWinner = s.players[s.trickWinner];
       announce(`${trickWinner.name} wins the trick`);
+      const trickSummary = s.currentTrick
+        .map(({ card, playerIndex }) => {
+          const label = `${seatToPos(playerIndex)[0].toUpperCase()}: ${cardStr(card)}`;
+          return playerIndex === s.trickWinner
+            ? `<strong class="trick-winner-card">${label}</strong>`
+            : label;
+        })
+        .join(' · ');
       logActivity(`${trickWinner.name} wins the trick`, 'trick');
+      logActivity(trickSummary, '', true);
+      const trickDelay = tramActive ? 700 : 1400;
       setTimeout(() => {
         if (!gameState) return;
         gameState = E.advanceTrick(gameState);
+        if (gameState.phase !== P.PLAYING) { tramActive = false; tramSeat = null; }
         renderGame();
         processGameLoop();
-      }, 1400);
+      }, trickDelay);
       return;
     }
 
     if (phase === P.HAND_END) {
+      tramActive = false;
+      tramSeat   = null;
       showHandResult(s);
       return;
+    }
+
+    // Check for TRAM at the start of each trick
+    if (phase === P.PLAYING && s.currentTrick.length === 0 && !tramActive && tramEnabled) {
+      const tram = detectTRAM(s);
+      if (tram !== null) {
+        tramActive = true;
+        tramSeat   = tram;
+        const tramName = s.players[tram].name;
+        logActivity(`${tramName} — TRAM! The Rest Are Mine`, 'highlight');
+        announce(`${tramName} — TRAM!`);
+        showTRAMBanner(tramName);
+      }
     }
 
     // Determine who needs to act
@@ -861,12 +1071,13 @@
       actorIdx = s.currentPlayer;
     }
 
-    if (actorIdx === null || actorIdx === 0) return; // Human acts via UI
+    // During TRAM, human's turn is auto-played like AI
+    if (actorIdx === null || (actorIdx === 0 && !tramActive)) return;
 
-    // Schedule AI action
+    // Schedule AI action (or human auto-play during TRAM)
     if (!aiPending) {
       aiPending = true;
-      const delay = 700 + Math.random() * 500;
+      const delay = tramActive ? 350 + Math.random() * 150 : 700 + Math.random() * 500;
       setTimeout(() => performAIAction(actorIdx), delay);
     }
   }
@@ -886,7 +1097,7 @@
           const tn = s.upCard.suit;
           gameState = E.actionOrderUp(s, actorIdx, decision.alone);
           announce(`${name} ordered up ${tn} as trump` + (decision.alone ? ' and goes alone!' : ''));
-          logActivity(`${name} ordered up ${E.SUIT_SYMBOL[tn]} ${tn} as trump${decision.alone ? ' — go alone!' : ''}`, 'highlight');
+          logActivity(`${name} ordered up ${E.SUIT_SYMBOL[tn]} ${tn} — picking up ${cardStr(s.upCard)}${decision.alone ? ' · go alone!' : ''}`, 'highlight');
           // AI dealer should auto-discard (only if dealer is also AI)
           if (gameState.phase === P.DEALER_DISCARD && gameState.currentPlayer !== 0) {
             const di = AI.getDiscard(gameState, gameState.currentPlayer, aiDifficulty);
@@ -1032,6 +1243,8 @@
         if (isGameOver) {
           showGameOver(s);
         } else {
+          tramActive = false;
+          tramSeat   = null;
           gameState = E.startNextHand(s);
           logDivider();
           renderGame();
@@ -1301,6 +1514,21 @@
         logActivity(`${makerName} made ${E.SUIT_SYMBOL[suit]} ${suit} trump`, 'highlight');
       }
 
+      // Log trick completion
+      if (gameState.phase === P.TRICK_END && prevPhase !== P.TRICK_END && gameState.trickWinner !== null) {
+        const winner = gameState.players[gameState.trickWinner];
+        const trickSummary = gameState.currentTrick
+          .map(({ card, playerIndex }) => {
+            const label = `${seatToPos(playerIndex)[0].toUpperCase()}: ${cardStr(card)}`;
+            return playerIndex === gameState.trickWinner
+              ? `<strong class="trick-winner-card">${label}</strong>`
+              : label;
+          })
+          .join(' · ');
+        logActivity(`${winner.name} wins the trick`, 'trick');
+        logActivity(trickSummary, '', true);
+      }
+
       // Dismiss hand result overlay when moving out of HAND_END
       if (prevPhase === P.HAND_END && gameState.phase !== P.HAND_END) {
         const panel = qs('#hand-result');
@@ -1347,7 +1575,26 @@
 
   // ── Init ─────────────────────────────────────────────────────────────────
 
+  function printConsoleBanner() {
+    console.log([
+      '%c',
+      ' ___   ___   ___   ___  ',
+      '|A  | |K  | |Q  | |J  | ',
+      '| ♠ | | ♥ | | ♦ | | ♣ | ',
+      '|__A| |__K| |__Q| |__J| ',
+    ].join('\n'), 'font-family: monospace; font-size: 13px; line-height: 1.5;');
+    console.log(
+      '%cHey. Hey, you.',
+      'font-size: 16px; font-weight: bold; color: #93f005;'
+    );
+    console.log(
+      '%cPlease, I\'m begging you — close the DevTools and go enjoy the game.\nThis is euchre. It\'s a card game. For fun. Nobody is cryptomining.\nThere\'s no tracking pixel buried in the jack of clubs.\nJust... chill out. Deal the cards. Have a good time. 🃏',
+      'font-size: 13px; color: #ccc; line-height: 1.6;'
+    );
+  }
+
   function init() {
+    printConsoleBanner();
     initHome();
     initSetup();
     initPrivateScreen();

@@ -117,3 +117,25 @@ describe('east/west player-info', () => {
     assert.match(rule, /flex-direction:\s*column/);
   });
 });
+
+// ── Center glow container size ────────────────────────────────────────────────
+
+describe('center-glow-container', () => {
+  it('≤480px: width is ≤ 200px to prevent iOS Safari scroll-width inflation', () => {
+    const block = getMediaBlock('max-width: 480px');
+    const match = block.match(/\.center-glow-container\s*\{[^}]*width:\s*(\d+)px/);
+    assert.ok(match, '.center-glow-container width not overridden in ≤480px block');
+    const width = parseInt(match[1], 10);
+    assert.ok(width <= 200, `glow container width ${width}px exceeds 200px — may push east column off screen on 393px viewport`);
+  });
+});
+
+// ── player-area min-width ─────────────────────────────────────────────────────
+
+describe('player-area base styles', () => {
+  it('has min-width: 0 to prevent grid item content from expanding track', () => {
+    const block = css.match(/\.player-area\s*\{[^}]+\}/s)?.[0];
+    assert.ok(block, '.player-area rule not found');
+    assert.match(block, /min-width:\s*0/);
+  });
+});

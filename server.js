@@ -344,6 +344,10 @@ wss.on('connection', ws => {
   ws.on('error', err => console.error('WS error:', err.message));
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`\n  Roberta Royale — http://localhost:${PORT}\n`);
-});
+if (require.main === module) {
+  httpServer.listen(PORT, () => {
+    console.log(`\n  Roberta Royale — http://localhost:${PORT}\n`);
+  });
+}
+
+module.exports = { httpServer, wss };

@@ -298,6 +298,13 @@ function scheduleAI(room) {
 
 const httpServer = http.createServer((req, res) => {
   const urlPath  = req.url.split('?')[0];
+
+  if (urlPath === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok' }));
+    return;
+  }
+
   const filePath = path.resolve(ROOT, '.' + urlPath === '/.' ? '/index.html' : '.' + urlPath);
   const safe     = path.resolve(ROOT, urlPath === '/' ? 'index.html' : urlPath.slice(1));
 

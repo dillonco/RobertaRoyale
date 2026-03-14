@@ -51,6 +51,16 @@ const EuchreAI = (() => {
       return { action: 'pass' };
     }
 
+    if (difficulty === 'hard') {
+      // Hard: more accurate hand evaluation — treat dealer pickup as certain
+      // For non-dealer ordering up their partner as dealer, use higher threshold
+      const isOrderingPartner = (state.dealer % 2) === (playerIndex % 2) && playerIndex !== state.dealer;
+      const threshold = isOrderingPartner ? 2.8 : 2.0;
+      if (strength >= 5.5) return { action: 'order', alone: true };
+      if (strength >= threshold) return { action: 'order', alone: false };
+      return { action: 'pass' };
+    }
+
     // Normal
     if (strength >= 6.0) return { action: 'order', alone: true  };
     if (strength >= 2.5) return { action: 'order', alone: false };
@@ -86,6 +96,13 @@ const EuchreAI = (() => {
       return { action: 'pass' };
     }
 
+    if (difficulty === 'hard') {
+      if (mustCall) return { action: 'call', suit: bestSuit || fallback, alone: bestScore >= 5.0 };
+      if (bestScore >= 5.0) return { action: 'call', suit: bestSuit, alone: true };
+      if (bestScore >= 1.8) return { action: 'call', suit: bestSuit, alone: false };
+      return { action: 'pass' };
+    }
+
     // Normal
     if (mustCall) return { action: 'call', suit: bestSuit || fallback, alone: bestScore >= 6.0 };
     if (bestScore >= 6.0) return { action: 'call', suit: bestSuit, alone: true  };
@@ -110,7 +127,7 @@ const EuchreAI = (() => {
       return safe >= 0 ? safe : Math.floor(Math.random() * hand.length);
     }
 
-    // Normal: discard weakest non-trump; if all trump, discard weakest trump
+    // Normal/Hard: discard weakest non-trump; if all trump, discard weakest trump
     const indexed = hand.map((c, i) => ({ c, i }));
     const nonTrump = indexed.filter(x => E.effectiveSuit(x.c, trump) !== trump);
 
@@ -146,7 +163,7 @@ const EuchreAI = (() => {
     if (difficulty === 'easy') {
       chosen = legal[Math.floor(Math.random() * legal.length)];
     } else {
-      // ── Normal difficulty ──────────────────────────────────────────────
+      // ── Normal / Hard difficulty ───────────────────────────────────────
 
       const myTeam    = E.teamOf(playerIndex);
       const isMaker   = myTeam === state.makerTeam;
@@ -164,12 +181,24 @@ const EuchreAI = (() => {
 
       if (isLeading) {
         // ── Leading ─────────────────────────────────────────────────────
-        if (isMaker) {
-          // Lead highest trump to pull opponents' trump
-          const trumps = legal.filter(c => E.effectiveSuit(c, trump) === trump);
-          if (trumps.length > 0) { chosen = highest(trumps); }
+        if (difficulty === 'hard') {
+          if (isMaker) {
+            // Lead highest trump on first trick to pull trump
+            const trumps = legal.filter(c => E.effectiveSuit(c, trump) === trump);
+            if (trumps.length > 0) { chosen = highest(trumps); }
+          }
+          // If we have a suit where we hold the only trump of that suit and
+          // partner hasn't played yet, consider leading it (fall through to highest)
+          if (!chosen) chosen = highest(legal);
+        } else {
+          // Normal
+          if (isMaker) {
+            // Lead highest trump to pull opponents' trump
+            const trumps = legal.filter(c => E.effectiveSuit(c, trump) === trump);
+            if (trumps.length > 0) { chosen = highest(trumps); }
+          }
+          if (!chosen) chosen = highest(legal);
         }
-        if (!chosen) chosen = highest(legal);
       } else {
         // ── Following ───────────────────────────────────────────────────
         const trick    = state.currentTrick;
@@ -184,15 +213,36 @@ const EuchreAI = (() => {
         const partnerIdx     = (playerIndex + 2) % 4;
         const partnerWinning = currentWinner.playerIndex === partnerIdx;
 
-        if (partnerWinning) {
-          // Don't waste cards — play lowest legal
-          chosen = lowest(legal);
+        if (difficulty === 'hard') {
+          if (partnerWinning) {
+            // Partner is winning — don't waste trump or high cards
+            chosen = lowest(legal);
+          } else {
+            // Partner not winning — try to win
+            const winners = legal.filter(c =>
+              E.cardBeats(c, currentWinner.card, trickLed, trump)
+            );
+            if (winners.length > 0) {
+              // When defending (not maker), play second-hand-low principle:
+              // use cheapest winning card to conserve high cards
+              chosen = lowest(winners);
+            } else {
+              // Can't win — play lowest to not waste strong cards
+              chosen = lowest(legal);
+            }
+          }
         } else {
-          // Try to win with the cheapest card that beats the current winner
-          const winners = legal.filter(c =>
-            E.cardBeats(c, currentWinner.card, trickLed, trump)
-          );
-          chosen = winners.length > 0 ? lowest(winners) : lowest(legal);
+          // Normal
+          if (partnerWinning) {
+            // Don't waste cards — play lowest legal
+            chosen = lowest(legal);
+          } else {
+            // Try to win with the cheapest card that beats the current winner
+            const winners = legal.filter(c =>
+              E.cardBeats(c, currentWinner.card, trickLed, trump)
+            );
+            chosen = winners.length > 0 ? lowest(winners) : lowest(legal);
+          }
         }
       }
     }

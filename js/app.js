@@ -44,6 +44,9 @@
   let _lastDealKey      = null;
   let _isDealAnim       = false;
   let _lastTricksPlayed = -1;
+  let gameSpeed    = 'normal'; // 'normal' | 'fast'
+  let handHistory  = [];       // Feature 11: per-game hand log
+  let _handNumber  = 0;        // increments each HAND_END
 
   const FLY_DUR      = 0.35;  // seconds a single card takes to fly
   const FLY_INTERVAL = 0.06;  // seconds between successive card departures
@@ -60,6 +63,126 @@
   // ── Routing & Persistence ─────────────────────────────────────────────────
 
   const STORAGE_KEY = 'robertaroyale_v1';
+  const STATS_KEY   = 'robertaroyale_stats_v1';
+
+  // ── Stats helpers ────────────────────────────────────────────────────────
+
+  function defaultStats() {
+    return {
+      gamesPlayed: 0, gamesWon: 0,
+      handsPlayed: 0,
+      euchreSuffered: 0, euchresDealt: 0,
+      marches: 0,
+      loneMarchesAttempted: 0, loneMarchesSucceeded: 0,
+      orderedUpR1: 0, orderedUpR1Won: 0,
+      calledR2: 0, calledR2Won: 0,
+      wentAlone: 0, wentAloneWon: 0,
+      currentWinStreak: 0, bestWinStreak: 0,
+    };
+  }
+
+  function loadStats() {
+    try {
+      const raw = localStorage.getItem(STATS_KEY);
+      return raw ? Object.assign(defaultStats(), JSON.parse(raw)) : defaultStats();
+    } catch (_) { return defaultStats(); }
+  }
+
+  function saveStats(st) {
+    try { localStorage.setItem(STATS_KEY, JSON.stringify(st)); } catch (_) {}
+  }
+
+  // Record outcome at HAND_END for solo mode (mySeatIndex === 0)
+  function recordHandStats(s) {
+    if (multiplayerMode) return;
+    const r       = s.lastHandResult;
+    if (!r) return;
+    const st      = loadStats();
+    const myTeam  = 0; // solo: seat 0 is always team 0
+    const iMake   = s.makerTeam === myTeam;
+    const weWon   = r.scoringTeam === myTeam;
+
+    st.handsPlayed++;
+
+    if (r.type === 'EUCHRE') {
+      if (iMake) st.euchreSuffered++;
+      else       st.euchresDealt++;
+    }
+    if ((r.type === 'MARCH' || r.type === 'LONE_MARCH') && iMake) st.marches++;
+    if (s.alone && s.maker === mySeatIndex) {
+      st.loneMarchesAttempted++;
+      if (r.type === 'LONE_MARCH') st.loneMarchesSucceeded++;
+    }
+
+    // Bidding stats — only track for human player (seat 0)
+    // Round 1 if turnedDownSuit is null (upcard never turned down), else Round 2
+    if (s.maker === mySeatIndex) {
+      const wasRound1 = !s.turnedDownSuit;
+      if (wasRound1) {
+        st.orderedUpR1++;
+        if (weWon) st.orderedUpR1Won++;
+      } else {
+        st.calledR2++;
+        if (weWon) st.calledR2Won++;
+      }
+      if (s.alone) {
+        st.wentAlone++;
+        if (weWon) st.wentAloneWon++;
+      }
+    }
+
+    saveStats(st);
+  }
+
+  function recordGameStats(won) {
+    if (multiplayerMode) return;
+    const st = loadStats();
+    st.gamesPlayed++;
+    if (won) {
+      st.gamesWon++;
+      st.currentWinStreak++;
+      if (st.currentWinStreak > st.bestWinStreak) st.bestWinStreak = st.currentWinStreak;
+    } else {
+      st.currentWinStreak = 0;
+    }
+    saveStats(st);
+  }
+
+  function pct(num, den) {
+    if (!den) return '—';
+    return Math.round(num / den * 100) + '%';
+  }
+
+  function renderStatsScreen() {
+    const st  = loadStats();
+    const el  = qs('#stats-content');
+    if (!el) return;
+    el.innerHTML = `
+      <div class="stats-grid">
+        <div class="stats-section">
+          <div class="stats-section-title">Games</div>
+          <div class="stats-row"><span>Played</span><span class="stats-val">${st.gamesPlayed}</span></div>
+          <div class="stats-row"><span>Won</span><span class="stats-val">${st.gamesWon}</span></div>
+          <div class="stats-row"><span>Win Rate</span><span class="stats-val">${pct(st.gamesWon, st.gamesPlayed)}</span></div>
+          <div class="stats-row"><span>Win Streak</span><span class="stats-val">${st.currentWinStreak}</span></div>
+          <div class="stats-row"><span>Best Streak</span><span class="stats-val">${st.bestWinStreak}</span></div>
+        </div>
+        <div class="stats-section">
+          <div class="stats-section-title">Hands</div>
+          <div class="stats-row"><span>Played</span><span class="stats-val">${st.handsPlayed}</span></div>
+          <div class="stats-row"><span>Marches</span><span class="stats-val">${st.marches}</span></div>
+          <div class="stats-row"><span>Lone March</span><span class="stats-val">${st.loneMarchesSucceeded}/${st.loneMarchesAttempted}</span></div>
+          <div class="stats-row"><span>Euchred</span><span class="stats-val">${st.euchreSuffered}</span></div>
+          <div class="stats-row"><span>Euchres Dealt</span><span class="stats-val">${st.euchresDealt}</span></div>
+        </div>
+        <div class="stats-section">
+          <div class="stats-section-title">Bidding (You)</div>
+          <div class="stats-row"><span>Ordered R1</span><span class="stats-val">${st.orderedUpR1} <span class="stats-sub">${pct(st.orderedUpR1Won, st.orderedUpR1)}</span></span></div>
+          <div class="stats-row"><span>Called R2</span><span class="stats-val">${st.calledR2} <span class="stats-sub">${pct(st.calledR2Won, st.calledR2)}</span></span></div>
+          <div class="stats-row"><span>Went Alone</span><span class="stats-val">${st.wentAlone} <span class="stats-sub">${pct(st.wentAloneWon, st.wentAlone)}</span></span></div>
+        </div>
+      </div>`;
+  }
 
   function persistSave() {
     if (multiplayerMode) return;
@@ -204,6 +327,10 @@
     qs('#btn-play-private').addEventListener('click', () => showScreen('screen-private'));
     qs('#btn-play-quick').addEventListener('click',   () => showComingSoon('Quick Match'));
     qs('#btn-play-tourney').addEventListener('click', () => showComingSoon('Tournaments'));
+    qs('#btn-stats')?.addEventListener('click', () => {
+      renderStatsScreen();
+      showScreen('screen-stats');
+    });
   }
 
   function showComingSoon(mode) {
@@ -227,6 +354,7 @@
     playerName   = (qs('#setup-name').value.trim()) || randomEraName();
     aiDifficulty = qs('input[name="difficulty"]:checked').value;
     tramEnabled  = qs('#setup-tram').checked;
+    gameSpeed    = qs('input[name="setup-speed"]:checked')?.value || 'normal';
     const target = parseInt(qs('input[name="target"]:checked').value, 10);
 
     // Reset multiplayer state for solo play
@@ -234,6 +362,8 @@
     mySeatIndex     = 0;
     tramActive      = false;
     tramSeat        = null;
+    handHistory     = [];
+    _handNumber     = 0;
 
     const names = [playerName, 'West AI', 'Partner AI', 'East AI'];
     _prevScores = [0, 0];
@@ -317,7 +447,7 @@
     if (_isDealAnim) {
       _lastDealKey      = dealKey;
       _lastTricksPlayed = 0;
-      playDealAnimation(false);
+      playDealAnimation(gameSpeed === 'fast');
     }
 
     renderScore(s);
@@ -341,32 +471,35 @@
     const pop0 = myScore  > _prevScores[0] ? 'score-value--pop' : '';
     const pop1 = oppScore > _prevScores[1] ? 'score-value--pop' : '';
     _prevScores = [myScore, oppScore];
+    const target = s.targetScore;
     el.innerHTML = `
       <div class="scoreboard-pill">
         <div class="score-team">
           <span class="score-label">Us</span>
-          <span class="score-value ${pop0}" aria-label="Your team: ${myScore}">${myScore}</span>
+          <span class="score-value ${pop0}" aria-label="Your team: ${myScore} of ${target}">${myScore}<span class="score-target"> / ${target}</span></span>
         </div>
         <div class="score-divider"></div>
         <div class="score-team">
           <span class="score-label">Them</span>
-          <span class="score-value ${pop1}" aria-label="Opponents: ${oppScore}">${oppScore}</span>
+          <span class="score-value ${pop1}" aria-label="Opponents: ${oppScore} of ${target}">${oppScore}<span class="score-target"> / ${target}</span></span>
         </div>
       </div>`;
   }
 
   function renderTrumpBadge(s) {
     const el = qs('#trump-badge');
+    const screen = qs('#screen-game');
     if (s.trump) {
       const suitName = s.trump.charAt(0).toUpperCase() + s.trump.slice(1);
       el.innerHTML = `
         <span class="trump-label">TRUMP</span>
-        <span class="trump-suit ${E.SUIT_COLOR[s.trump]}">${E.SUIT_SYMBOL[s.trump]} ${suitName}</span>
-        ${s.maker !== null ? `<span class="trump-maker">${escHtml(s.players[s.maker].name)} made it</span>` : ''}`;
+        <span class="trump-suit ${E.SUIT_COLOR[s.trump]}">${E.SUIT_SYMBOL[s.trump]} ${suitName}</span>`;
       el.hidden = false;
       el.setAttribute('aria-label', `Trump suit: ${s.trump}`);
+      if (screen) screen.dataset.trump = s.trump;
     } else {
       el.hidden = true;
+      if (screen) delete screen.dataset.trump;
     }
   }
 
@@ -377,7 +510,7 @@
   }
 
   function renderDealerChip(s) {
-    qsa('.dealer-chip').forEach(el => el.remove());
+    qsa('.dealer-chip, .stuck-chip').forEach(el => el.remove());
     const area = qs(`.player-area--${seatToPos(s.dealer)}`);
     if (area) {
       const chip = document.createElement('div');
@@ -388,6 +521,19 @@
       const nameEl = qs('.player-name', area);
       (nameEl || area).appendChild(chip);
     }
+    // Stuck dealer badge
+    if (s.stickDealer && s.currentBidder !== null) {
+      const stuckArea = qs(`.player-area--${seatToPos(s.currentBidder)}`);
+      if (stuckArea) {
+        const badge = document.createElement('div');
+        badge.className = 'stuck-chip';
+        badge.title = 'Must call trump';
+        badge.setAttribute('aria-label', 'Stuck — must call trump');
+        badge.textContent = '!';
+        const nameEl = qs('.player-name', stuckArea);
+        (nameEl || stuckArea).appendChild(badge);
+      }
+    }
   }
 
   function renderMakerChip(s) {
@@ -396,10 +542,10 @@
     const area = qs(`.player-area--${seatToPos(s.maker)}`);
     if (area) {
       const chip = document.createElement('div');
-      chip.className = `maker-chip ${E.SUIT_COLOR[s.trump]}`;
+      chip.className = 'maker-chip';
       chip.title = `Called ${s.trump} trump`;
       chip.setAttribute('aria-label', `Called ${s.trump} trump`);
-      chip.textContent = E.SUIT_SYMBOL[s.trump];
+      chip.textContent = `${E.SUIT_SYMBOL[s.trump]} made it`;
       const nameEl = qs('.player-name', area);
       (nameEl || area).appendChild(chip);
     }
@@ -429,21 +575,21 @@
       area.classList.toggle('player-area--sitting-out', isSittingOut);
 
       if (nameEl) {
-        nameEl.textContent = s.players[seatIdx].name + (isMe && multiplayerMode ? ' (You)' : '');
+        const myTeam = E.teamOf(mySeatIndex);
+        const dotClass = team === myTeam ? 'team-dot--us' : 'team-dot--them';
+        const label = escHtml(s.players[seatIdx].name + (isMe && multiplayerMode ? ' (You)' : ''));
+        nameEl.innerHTML = `<span class="team-dot ${dotClass}" aria-hidden="true"></span>${label}`;
       }
 
       if (tricksEl) {
         const won = s.tricksPlayed > 0 ? s.teamTricks[team] : 0;
-        tricksEl.innerHTML = `<div class="tricks-won" aria-label="${won} tricks">${
-          Array.from({length: 3}, (_, i) =>
-            `<div class="trick-dot${i < won ? ' won' : ''}"></div>`
-          ).join('')
-        }</div>`;
+        const label = won === 1 ? '1 trick' : `${won} tricks`;
+        tricksEl.innerHTML = `<span class="tricks-count" aria-label="${label}">${won}</span><span> / 5</span>`;
       }
 
       if (statusEl) {
         let st = '';
-        if (isSittingOut) st = 'Sitting Out';
+        if (isSittingOut) st = 'Sitting out — loner hand';
         else if (isCurrent && !isMe) st = 'Playing…';
         statusEl.innerHTML = (isActive && !isMe && !isSittingOut)
           ? `<span class="thinking-dots" aria-hidden="true"><span></span><span></span><span></span></span>`
@@ -464,15 +610,18 @@
       }
     }
 
-    // Status text overlay
+    // Status text overlay with round context
     const statusOverlay = qs('#game-status-text');
     if (statusOverlay) {
       if (s.phase === P.PLAYING && s.currentPlayer !== null) {
         const name = s.players[s.currentPlayer].name;
         statusOverlay.textContent = s.currentPlayer === mySeatIndex ? 'Your turn' : `${name}'s turn`;
-      } else if (s.phase === P.BIDDING_ROUND1 || s.phase === P.BIDDING_ROUND2) {
+      } else if (s.phase === P.BIDDING_ROUND1) {
         const bidder = s.currentBidder;
-        statusOverlay.textContent = bidder === mySeatIndex ? '' : `${s.players[bidder].name} is bidding…`;
+        statusOverlay.textContent = bidder === mySeatIndex ? 'Round 1 — your bid' : `Round 1 — ${s.players[bidder].name} deciding…`;
+      } else if (s.phase === P.BIDDING_ROUND2) {
+        const bidder = s.currentBidder;
+        statusOverlay.textContent = bidder === mySeatIndex ? 'Round 2 — name a suit' : `Round 2 — ${s.players[bidder].name} deciding…`;
       } else {
         statusOverlay.textContent = '';
       }
@@ -530,13 +679,24 @@
       slot.innerHTML = cardHtml(card, s.trump, { small: true });
     });
 
-    // Up card display (round 1 only)
+    // Up card / turned-down card display
     const upCardEl = qs('#up-card-area');
     if (upCardEl) {
       if (s.phase === P.BIDDING_ROUND1 && s.upCard) {
         upCardEl.innerHTML = `
-          <div class="up-card-label">Up Card</div>
+          <div class="up-card-label">Round 1 — Accept?</div>
           ${cardHtml(s.upCard, null, { small: false })}`;
+        upCardEl.hidden = false;
+      } else if (s.phase === P.BIDDING_ROUND2 && s.turnedDownSuit) {
+        const sym  = E.SUIT_SYMBOL[s.turnedDownSuit];
+        const name = s.turnedDownSuit.charAt(0).toUpperCase() + s.turnedDownSuit.slice(1);
+        upCardEl.innerHTML = `
+          <div class="up-card-label">Round 2 — Name a Suit</div>
+          <div class="turned-down-wrap">
+            ${cardHtml(s.upCard, null, { small: false })}
+            <div class="turned-down-x" aria-hidden="true">✕</div>
+          </div>
+          <div class="up-card-label" style="color:var(--text-muted)">${sym} ${name} passed</div>`;
         upCardEl.hidden = false;
       } else {
         upCardEl.hidden = true;
@@ -1021,7 +1181,8 @@
       announce(`${trickWinner.name} wins the trick`);
       const trickSummary = s.currentTrick
         .map(({ card, playerIndex }) => {
-          const label = `${seatToPos(playerIndex)[0].toUpperCase()}: ${cardStr(card)}`;
+          const firstName = s.players[playerIndex].name.split(' ')[0];
+          const label = `${firstName}: ${cardStr(card)}`;
           return playerIndex === s.trickWinner
             ? `<strong class="trick-winner-card">${label}</strong>`
             : label;
@@ -1029,9 +1190,20 @@
         .join(' · ');
       logActivity(`${trickWinner.name} wins the trick`, 'trick');
       logActivity(trickSummary, '', true);
-      const trickDelay = tramActive ? 700 : 1400;
+      // Show trick-winner overlay
+      const ov = qs('#trick-winner-overlay');
+      if (ov) {
+        ov.querySelector('.trick-winner-name').textContent = `${trickWinner.name.split(' ')[0]} wins`;
+        ov.classList.remove('visible');
+        void ov.offsetWidth; // force reflow to restart animation
+        ov.classList.add('visible');
+      }
+      const trickDelay = tramActive
+        ? (gameSpeed === 'fast' ? 300 : 700)
+        : (gameSpeed === 'fast' ? 500 : 1400);
       setTimeout(() => {
         if (!gameState) return;
+        if (ov) ov.classList.remove('visible');
         gameState = E.advanceTrick(gameState);
         if (gameState.phase !== P.PLAYING) { tramActive = false; tramSeat = null; }
         renderGame();
@@ -1043,6 +1215,22 @@
     if (phase === P.HAND_END) {
       tramActive = false;
       tramSeat   = null;
+      // Record stats and hand history before showing result
+      recordHandStats(s);
+      _handNumber++;
+      const r = s.lastHandResult;
+      if (r) {
+        handHistory.push({
+          handNumber:  _handNumber,
+          maker:       s.players[s.maker]?.name || '?',
+          trump:       s.trump,
+          alone:       s.alone,
+          result:      r.type,
+          points:      r.points,
+          scoringTeam: r.scoringTeam,
+          scoresAfter: [...s.scores],
+        });
+      }
       showHandResult(s);
       return;
     }
@@ -1077,7 +1265,12 @@
     // Schedule AI action (or human auto-play during TRAM)
     if (!aiPending) {
       aiPending = true;
-      const delay = tramActive ? 350 + Math.random() * 150 : 700 + Math.random() * 500;
+      let delay;
+      if (tramActive) {
+        delay = gameSpeed === 'fast' ? 100 + Math.random() * 50 : 350 + Math.random() * 150;
+      } else {
+        delay = gameSpeed === 'fast' ? 150 + Math.random() * 100 : 700 + Math.random() * 500;
+      }
       setTimeout(() => performAIAction(actorIdx), delay);
     }
   }
@@ -1106,7 +1299,11 @@
         } else {
           gameState = E.actionPassRound1(s, actorIdx);
           announce(`${name} passed`);
-          logActivity(`${name} passed`);
+          // Suppress individual pass log spam — log summary when round ends
+          if (gameState.phase === P.BIDDING_ROUND2) {
+            const sym = E.SUIT_SYMBOL[s.upCard.suit];
+            logActivity(`All passed — ${sym} ${s.upCard.suit} turned down`);
+          }
         }
 
       } else if (phase === P.BIDDING_ROUND2 && s.currentBidder === actorIdx) {
@@ -1119,7 +1316,10 @@
         } else {
           gameState = E.actionPassRound2(s, actorIdx);
           announce(`${name} passed`);
-          logActivity(`${name} passed`);
+          // Log only if dealer got stuck (all passed round 2)
+          if (gameState.stickDealer) {
+            logActivity(`All passed round 2 — dealer must call`);
+          }
         }
 
       } else if (phase === P.DEALER_DISCARD && s.currentPlayer === actorIdx) {
@@ -1257,6 +1457,7 @@
   // ── Game Over Screen ─────────────────────────────────────────────────────
 
   function showGameOver(s) {
+    const myTeam   = multiplayerMode ? mySeatIndex % 2 : 0;
     const [t0, t1] = s.scores;
     const youWon   = t0 >= s.targetScore;
     const title    = youWon ? 'You Win!' : 'Opponents Win';
@@ -1268,6 +1469,34 @@
     qs('#gameover-subtitle').textContent = sub;
     qs('#gameover-score-you').textContent = `You & Partner: ${t0}`;
     qs('#gameover-score-opp').textContent = `Opponents: ${t1}`;
+
+    // Record game stats (solo only)
+    if (!multiplayerMode) recordGameStats(youWon);
+
+    // Render hand history table (solo only)
+    const histSection = qs('#hand-history-section');
+    const histBody    = qs('#hand-history-body');
+    if (histSection && histBody && !multiplayerMode && handHistory.length > 0) {
+      const RESULT_LABELS = { NORMAL: 'Made It', MARCH: 'March', LONE_MARCH: 'Lone March', EUCHRE: 'Euchre' };
+      histBody.innerHTML = handHistory.map(h => {
+        const scoring  = h.scoringTeam === myTeam ? 'Us' : 'Them';
+        const scoreStr = `${h.scoresAfter[myTeam]}–${h.scoresAfter[1 - myTeam]}`;
+        const resLabel = RESULT_LABELS[h.result] || h.result;
+        const suitSym  = E.SUIT_SYMBOL[h.trump] || h.trump;
+        const suitCls  = E.SUIT_COLOR[h.trump] || '';
+        return `<tr>
+          <td>${h.handNumber}</td>
+          <td>${escHtml(h.maker)}${h.alone ? ' ★' : ''}</td>
+          <td><span class="suit-icon ${suitCls}" aria-hidden="true">${suitSym}</span> ${h.trump}</td>
+          <td class="hist-result hist-result--${h.result.toLowerCase().replace('_', '-')}">${resLabel}</td>
+          <td>${scoring} +${h.points}</td>
+          <td>${scoreStr}</td>
+        </tr>`;
+      }).join('');
+      histSection.hidden = false;
+    } else if (histSection) {
+      histSection.hidden = true;
+    }
 
     showScreen('screen-gameover');
     announce(title + '. ' + sub, true);
@@ -1315,6 +1544,7 @@
   // ── Multiplayer helpers ───────────────────────────────────────────────────
 
   function leaveMultiplayer() {
+    clearReconnectData();
     Network.disconnect();
     multiplayerMode = false;
     mySeatIndex     = 0;
@@ -1421,6 +1651,8 @@
     btn.hidden = false;
     const tg = qs('#lobby-target-group');
     if (tg) tg.hidden = false;
+    const dg = qs('#lobby-difficulty-group');
+    if (dg) dg.hidden = false;
     const count = players.filter(p => p.connected !== false).length;
     btn.disabled = count < 2;
     btn.textContent = count < 2
@@ -1445,9 +1677,24 @@
       }).catch(() => {});
     });
 
+    qs('#btn-copy-link').addEventListener('click', () => {
+      const code = myRoomCode;
+      if (!code) return;
+      const link = window.location.origin + window.location.pathname + '#join=' + code;
+      navigator.clipboard?.writeText(link).then(() => {
+        const btn = qs('#btn-copy-link');
+        if (btn) {
+          const orig = btn.textContent;
+          btn.textContent = '✓ Copied!';
+          setTimeout(() => { btn.textContent = orig; }, 2000);
+        }
+      }).catch(() => {});
+    });
+
     qs('#btn-start-private').addEventListener('click', () => {
-      const target = parseInt(qs('input[name="lobby-target"]:checked')?.value, 10) || 10;
-      Network.send({ type: 'start_game', target });
+      const target     = parseInt(qs('input[name="lobby-target"]:checked')?.value, 10) || 10;
+      const difficulty = qs('input[name="lobby-difficulty"]:checked')?.value || 'normal';
+      Network.send({ type: 'start_game', target, aiDifficulty: difficulty });
     });
 
     qs('#btn-leave-lobby').addEventListener('click', () => {
@@ -1458,15 +1705,32 @@
 
   // ── Network handlers ──────────────────────────────────────────────────────
 
+  function saveReconnectData(code, token, seatIndex) {
+    try { sessionStorage.setItem('rr_reconnect', JSON.stringify({ code, token, seatIndex })); } catch (_) {}
+  }
+
+  function clearReconnectData() {
+    try { sessionStorage.removeItem('rr_reconnect'); } catch (_) {}
+  }
+
+  function loadReconnectData() {
+    try {
+      const raw = sessionStorage.getItem('rr_reconnect');
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) { return null; }
+  }
+
   function setupNetworkHandlers() {
     Network.on('room_created', msg => {
       mySeatIndex = msg.seatIndex;
+      if (msg.reconnectToken) saveReconnectData(msg.code, msg.reconnectToken, msg.seatIndex);
       qs('#btn-create-room').disabled = false;
       showLobby(msg.code, msg.players, true);
     });
 
     Network.on('room_joined', msg => {
       mySeatIndex = msg.seatIndex;
+      if (msg.reconnectToken) saveReconnectData(msg.code, msg.reconnectToken, msg.seatIndex);
       qs('#btn-join-room').disabled = false;
       showLobby(msg.code, msg.players, false);
     });
@@ -1497,9 +1761,28 @@
       mySeatIndex     = msg.seatIndex;
       _prevScores     = [0, 0];
       gameState       = msg.state;
+      handHistory     = [];
+      _handNumber     = 0;
       clearActivityLog();
       showScreen('screen-game');
       renderGame();
+    });
+
+    Network.on('game_rejoined', msg => {
+      multiplayerMode = true;
+      mySeatIndex     = msg.seatIndex;
+      _prevScores     = [0, 0];
+      gameState       = msg.state;
+      clearActivityLog();
+      showScreen('screen-game');
+      renderGame();
+      // If state is HAND_END, show hand result overlay
+      if (gameState.phase === P.HAND_END) showHandResult(gameState);
+    });
+
+    Network.on('player_rejoined', msg => {
+      logActivity(`${escHtml(msg.name)} rejoined the game`, 'highlight');
+      announce(`${msg.name} rejoined the game`);
     });
 
     Network.on('game_state', msg => {
@@ -1519,7 +1802,8 @@
         const winner = gameState.players[gameState.trickWinner];
         const trickSummary = gameState.currentTrick
           .map(({ card, playerIndex }) => {
-            const label = `${seatToPos(playerIndex)[0].toUpperCase()}: ${cardStr(card)}`;
+            const firstName = gameState.players[playerIndex].name.split(' ')[0];
+            const label = `${firstName}: ${cardStr(card)}`;
             return playerIndex === gameState.trickWinner
               ? `<strong class="trick-winner-card">${label}</strong>`
               : label;
@@ -1527,6 +1811,19 @@
           .join(' · ');
         logActivity(`${winner.name} wins the trick`, 'trick');
         logActivity(trickSummary, '', true);
+        // Show trick-winner overlay
+        const ov = qs('#trick-winner-overlay');
+        if (ov) {
+          ov.querySelector('.trick-winner-name').textContent = `${winner.name.split(' ')[0]} wins`;
+          ov.classList.remove('visible');
+          void ov.offsetWidth;
+          ov.classList.add('visible');
+        }
+      }
+      // Hide overlay when trick advances
+      if (prevPhase === P.TRICK_END && gameState.phase !== P.TRICK_END) {
+        const ov = qs('#trick-winner-overlay');
+        if (ov) ov.classList.remove('visible');
       }
 
       // Dismiss hand result overlay when moving out of HAND_END
@@ -1542,11 +1839,27 @@
 
       // Show hand result when entering HAND_END
       if (prevPhase !== P.HAND_END && gameState.phase === P.HAND_END) {
+        // Track hand history in multiplayer too
+        const r = gameState.lastHandResult;
+        if (r) {
+          _handNumber++;
+          handHistory.push({
+            handNumber:  _handNumber,
+            maker:       gameState.players[gameState.maker]?.name || '?',
+            trump:       gameState.trump,
+            alone:       gameState.alone,
+            result:      r.type,
+            points:      r.points,
+            scoringTeam: r.scoringTeam,
+            scoresAfter: [...gameState.scores],
+          });
+        }
         showHandResult(gameState);
       }
     });
 
     Network.on('game_over', msg => {
+      clearReconnectData();
       showGameOver({ scores: msg.scores, targetScore: msg.targetScore });
     });
 
@@ -1593,12 +1906,23 @@
     );
   }
 
+  function initStatsScreen() {
+    qs('#btn-back-stats')?.addEventListener('click', () => showScreen('screen-home'));
+    qs('#btn-reset-stats')?.addEventListener('click', () => {
+      if (confirm('Reset all lifetime stats? This cannot be undone.')) {
+        saveStats(defaultStats());
+        renderStatsScreen();
+      }
+    });
+  }
+
   function init() {
     printConsoleBanner();
     initHome();
     initSetup();
     initPrivateScreen();
     initLobbyScreen();
+    initStatsScreen();
 
     // Go alone dialog buttons
     const dlgAlone = qs('#dialog-go-alone');
@@ -1730,6 +2054,35 @@
 
       showScreen(id, { push: false });
     });
+
+    // ── Shareable invite link: check hash for #join=XXXXXX ───────────────
+    const joinMatch = location.hash.match(/^#join=([A-Z0-9]{6})$/i);
+    if (joinMatch) {
+      const joinCode = joinMatch[1].toUpperCase();
+      history.replaceState({ screen: 'screen-private' }, '', '#private');
+      const joinInput = qs('#join-code-input');
+      if (joinInput) joinInput.value = joinCode;
+      showScreen('screen-private', { push: false });
+      // Return early — skip normal routing
+      return;
+    }
+
+    // ── Reconnect check ──────────────────────────────────────────────────
+    const reconnectData = loadReconnectData();
+    if (reconnectData) {
+      // Attempt to reconnect
+      (async () => {
+        try {
+          await Network.connect();
+          setupNetworkHandlers();
+          // After connect, send rejoin attempt
+          Network.send({ type: 'rejoin_room', code: reconnectData.code, reconnectToken: reconnectData.token });
+        } catch (_) {
+          clearReconnectData();
+        }
+      })();
+      // Show home screen while reconnecting
+    }
 
     // ── Initial routing ──────────────────────────────────────────────────
     const saved      = persistLoad();

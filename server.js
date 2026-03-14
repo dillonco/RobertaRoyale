@@ -1,9 +1,10 @@
 'use strict';
 
-const http = require('http');
+const http   = require('http');
 const WebSocket = require('ws');
-const fs   = require('fs');
-const path = require('path');
+const fs     = require('fs');
+const path   = require('path');
+const crypto = require('crypto');
 
 // ── Load game modules ─────────────────────────────────────────────────────────
 const Euchre = require('./js/euchre.js');
@@ -21,9 +22,15 @@ const MIME = {
 };
 
 // ── Room state ────────────────────────────────────────────────────────────────
-// room = { code, players:[{id,name,seatIndex,ws}], gameState, hostId, aiSeats,
-//          _aiTimer, _trickTimer }
+// room = { code, players:[{id,name,seatIndex,ws,reconnectToken,disconnectedAt,_reconnectTimer}],
+//          gameState, hostId, aiSeats, aiDifficulty, _aiTimer, _trickTimer }
 const rooms = new Map();
+
+const RECONNECT_GRACE_MS = 3 * 60 * 1000; // 3 minutes
+
+function genReconnectToken() {
+  return crypto.randomBytes(16).toString('hex');
+}
 
 function genCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusable chars
@@ -67,14 +74,15 @@ function handleCreate(ws, msg) {
   if (ws.roomCode) return send(ws, { type: 'error', message: 'Already in a room.' });
   if (rooms.size >= 100) return send(ws, { type: 'error', message: 'Server is full. Try again later.' });
   const code   = genCode();
-  const player = { id: ws.id, name: (msg.playerName || 'Host').slice(0, 20), seatIndex: 0, ws };
+  const token  = genReconnectToken();
+  const player = { id: ws.id, name: (msg.playerName || 'Host').slice(0, 20), seatIndex: 0, ws, reconnectToken: token };
   const room   = {
     code, players: [player], gameState: null,
-    hostId: ws.id, aiSeats: [], _aiTimer: null, _trickTimer: null,
+    hostId: ws.id, aiSeats: [], aiDifficulty: 'normal', _aiTimer: null, _trickTimer: null,
   };
   rooms.set(code, room);
   ws.roomCode = code;
-  send(ws, { type: 'room_created', code, seatIndex: 0, players: playerList(room), isHost: true });
+  send(ws, { type: 'room_created', code, seatIndex: 0, players: playerList(room), isHost: true, reconnectToken: token });
 }
 
 function handleJoin(ws, msg) {
@@ -86,11 +94,12 @@ function handleJoin(ws, msg) {
   if (room.gameState)       return send(ws, { type: 'error', message: 'Game already in progress.' });
 
   const seatIndex = room.players.length;
-  const player    = { id: ws.id, name: (msg.playerName || `Player ${seatIndex + 1}`).slice(0, 20), seatIndex, ws };
+  const token     = genReconnectToken();
+  const player    = { id: ws.id, name: (msg.playerName || `Player ${seatIndex + 1}`).slice(0, 20), seatIndex, ws, reconnectToken: token };
   room.players.push(player);
   ws.roomCode = code;
 
-  send(ws, { type: 'room_joined', code, seatIndex, players: playerList(room), isHost: false });
+  send(ws, { type: 'room_joined', code, seatIndex, players: playerList(room), isHost: false, reconnectToken: token });
   broadcast(room, { type: 'player_joined', players: playerList(room) }, ws.id);
 }
 
@@ -105,9 +114,11 @@ function handleStart(ws, msg) {
   const aiSeats  = [0, 1, 2, 3].filter(i => !occupied.has(i));
   const names    = Array.from({ length: 4 }, (_, i) => room.players.find(p => p.seatIndex === i)?.name || AI_NAMES[i]);
   const target   = parseInt(msg.target, 10) || 10;
+  const diff     = ['easy', 'normal', 'hard'].includes(msg.aiDifficulty) ? msg.aiDifficulty : 'normal';
 
-  room.aiSeats   = aiSeats;
-  room.gameState = Euchre.createGame(names, 0, target);
+  room.aiSeats      = aiSeats;
+  room.aiDifficulty = diff;
+  room.gameState    = Euchre.createGame(names, 0, target);
 
   room.players.forEach(p => {
     send(p.ws, {
@@ -137,7 +148,7 @@ function handleAction(ws, msg) {
         room.gameState = Euchre.actionOrderUp(s, seat, !!msg.alone);
         // If dealer is AI, auto-discard
         if (room.gameState.phase === P.DEALER_DISCARD && room.aiSeats.includes(room.gameState.currentPlayer)) {
-          const di = EuchreAI.getDiscard(room.gameState, room.gameState.currentPlayer, 'normal');
+          const di = EuchreAI.getDiscard(room.gameState, room.gameState.currentPlayer, room.aiDifficulty || 'normal');
           room.gameState = Euchre.actionDealerDiscard(room.gameState, di);
         }
         break;
@@ -202,13 +213,58 @@ function handleDisconnect(ws) {
     }
     broadcast(room, { type: 'player_left', players: playerList(room), name: leftName });
   } else {
-    // In-game: mark seat as AI-controlled
+    // In-game: start grace period before handing seat to AI
     const p = room.players[idx];
-    if (!room.aiSeats.includes(p.seatIndex)) room.aiSeats.push(p.seatIndex);
-    p.ws = null;
+    p.ws             = null;
+    p.disconnectedAt = Date.now();
     broadcast(room, { type: 'player_disconnected', name: p.name, seatIndex: p.seatIndex }, ws.id);
+
+    // Start reconnect timer — after grace period, hand off to AI permanently
+    p._reconnectTimer = setTimeout(() => {
+      p._reconnectTimer = null;
+      if (!rooms.has(room.code)) return; // room was deleted
+      if (!room.aiSeats.includes(p.seatIndex)) room.aiSeats.push(p.seatIndex);
+      broadcast(room, { type: 'player_disconnected', name: p.name, seatIndex: p.seatIndex });
+      scheduleAI(room);
+    }, RECONNECT_GRACE_MS);
+
+    // Still schedule AI in case it's their turn right now
     scheduleAI(room);
   }
+}
+
+function handleRejoin(ws, msg) {
+  const code  = (msg.code || '').toUpperCase().trim();
+  const token = msg.reconnectToken;
+  const room  = rooms.get(code);
+  if (!room || !room.gameState) return send(ws, { type: 'error', message: 'Room not found or game not in progress.' });
+
+  const player = room.players.find(p => p.reconnectToken === token);
+  if (!player) return send(ws, { type: 'error', message: 'Reconnect token invalid or expired.' });
+
+  // Clear grace period timer
+  if (player._reconnectTimer) {
+    clearTimeout(player._reconnectTimer);
+    player._reconnectTimer = null;
+  }
+
+  // Remove from aiSeats if present (they're back)
+  const aiIdx = room.aiSeats.indexOf(player.seatIndex);
+  if (aiIdx !== -1) room.aiSeats.splice(aiIdx, 1);
+
+  // Restore ws and update player id to new connection
+  player.ws = ws;
+  player.id = ws.id;
+  player.disconnectedAt = null;
+  ws.roomCode = code;
+
+  send(ws, {
+    type:       'game_rejoined',
+    seatIndex:  player.seatIndex,
+    state:      filteredState(room.gameState, player.seatIndex),
+  });
+
+  broadcast(room, { type: 'player_rejoined', name: player.name, seatIndex: player.seatIndex }, player.id);
 }
 
 // ── State broadcasting ────────────────────────────────────────────────────────
@@ -238,6 +294,8 @@ function broadcastGameOver(room) {
   broadcast(room, { type: 'game_over', scores: s.scores, targetScore: s.targetScore });
   clearTimeout(room._aiTimer);
   clearTimeout(room._trickTimer);
+  // Clear any pending reconnect timers
+  room.players.forEach(p => { if (p._reconnectTimer) { clearTimeout(p._reconnectTimer); p._reconnectTimer = null; } });
   rooms.delete(room.code);
 }
 
@@ -260,27 +318,28 @@ function scheduleAI(room) {
     const s2 = room.gameState;
     const P2 = Euchre.Phase;
 
+    const diff = room.aiDifficulty || 'normal';
     try {
       if (s2.phase === P2.BIDDING_ROUND1 && room.aiSeats.includes(s2.currentBidder)) {
-        const d = EuchreAI.getBidR1(s2, s2.currentBidder, 'normal');
+        const d = EuchreAI.getBidR1(s2, s2.currentBidder, diff);
         room.gameState = d.action === 'order'
           ? Euchre.actionOrderUp(s2, s2.currentBidder, d.alone)
           : Euchre.actionPassRound1(s2, s2.currentBidder);
         const gs = room.gameState;
         if (gs.phase === P2.DEALER_DISCARD && room.aiSeats.includes(gs.currentPlayer)) {
-          const di = EuchreAI.getDiscard(gs, gs.currentPlayer, 'normal');
+          const di = EuchreAI.getDiscard(gs, gs.currentPlayer, diff);
           room.gameState = Euchre.actionDealerDiscard(gs, di);
         }
       } else if (s2.phase === P2.BIDDING_ROUND2 && room.aiSeats.includes(s2.currentBidder)) {
-        const d = EuchreAI.getBidR2(s2, s2.currentBidder, 'normal');
+        const d = EuchreAI.getBidR2(s2, s2.currentBidder, diff);
         room.gameState = d.action === 'call'
           ? Euchre.actionCallSuit(s2, s2.currentBidder, d.suit, d.alone)
           : Euchre.actionPassRound2(s2, s2.currentBidder);
       } else if (s2.phase === P2.DEALER_DISCARD && room.aiSeats.includes(s2.currentPlayer)) {
-        const di = EuchreAI.getDiscard(s2, s2.currentPlayer, 'normal');
+        const di = EuchreAI.getDiscard(s2, s2.currentPlayer, diff);
         room.gameState = Euchre.actionDealerDiscard(s2, di);
       } else if (s2.phase === P2.PLAYING && room.aiSeats.includes(s2.currentPlayer)) {
-        const ci = EuchreAI.getPlay(s2, s2.currentPlayer, 'normal');
+        const ci = EuchreAI.getPlay(s2, s2.currentPlayer, diff);
         room.gameState = Euchre.actionPlayCard(s2, s2.currentPlayer, ci);
       } else {
         return;
@@ -334,6 +393,7 @@ wss.on('connection', ws => {
       switch (msg.type) {
         case 'create_room': handleCreate(ws, msg); break;
         case 'join_room':   handleJoin(ws, msg);   break;
+        case 'rejoin_room': handleRejoin(ws, msg); break;
         case 'start_game':  handleStart(ws, msg);  break;
         case 'game_action': handleAction(ws, msg); break;
       }

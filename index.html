@@ -78,6 +78,7 @@
 
   <footer class="home-footer">
     <button class="btn btn--ghost" id="btn-rules">📖 Rules of Euchre</button>
+    <button class="btn btn--ghost" id="btn-stats">📊 Stats</button>
     <span style="color:var(--text-muted);font-size:.7rem">Free · No download · WCAG AA</span>
   </footer>
 </main>
@@ -109,6 +110,10 @@
           <input type="radio" name="difficulty" value="normal" checked>
           Normal
         </label>
+        <label class="radio-option">
+          <input type="radio" name="difficulty" value="hard">
+          Hard
+        </label>
       </div>
     </fieldset>
 
@@ -136,6 +141,20 @@
         <input type="checkbox" id="setup-tram" checked>
         <span class="toggle-label">TRAM — auto-play "The Rest Are Mine"</span>
       </label>
+    </fieldset>
+
+    <fieldset class="form-group">
+      <legend class="form-label">Game speed</legend>
+      <div class="radio-group" role="radiogroup">
+        <label class="radio-option">
+          <input type="radio" name="setup-speed" id="setup-speed-normal" value="normal" checked>
+          Normal
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="setup-speed" id="setup-speed-fast" value="fast">
+          Fast
+        </label>
+      </div>
     </fieldset>
 
     <div class="setup-actions">
@@ -240,6 +259,7 @@
       </div>
 
       <div id="trick-led-indicator" hidden aria-live="polite"></div>
+      <div id="trick-winner-overlay" aria-hidden="true"><span class="trick-winner-name"></span></div>
     </div>
 
     <!-- East (AI) -->
@@ -324,6 +344,42 @@
     <button id="btn-home-again" class="btn btn--ghost">
       Home
     </button>
+  </div>
+  <div id="hand-history-section" class="hand-history-section" hidden>
+    <h3 class="hand-history-title">Hand History</h3>
+    <div class="hand-history-scroll">
+      <table class="hand-history-table" aria-label="Hand history">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Called By</th>
+            <th>Trump</th>
+            <th>Result</th>
+            <th>Pts</th>
+            <th>Score</th>
+          </tr>
+        </thead>
+        <tbody id="hand-history-body">
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     SCREEN: STATS
+════════════════════════════════════════════════════════════════════════ -->
+<section id="screen-stats" class="screen" aria-label="Lifetime stats"
+         aria-hidden="true">
+  <div class="setup-card stats-card">
+    <h2 class="setup-title">Your Stats</h2>
+    <div id="stats-content" class="stats-content">
+      <!-- populated by JS -->
+    </div>
+    <div class="setup-actions" style="margin-top:.5rem">
+      <button id="btn-reset-stats" class="btn btn--ghost btn--full">Reset Stats</button>
+      <button id="btn-back-stats" class="btn btn--ghost btn--full">← Back</button>
+    </div>
   </div>
 </section>
 
@@ -482,6 +538,7 @@
         <button id="lobby-code-btn" class="room-code-value"
                 aria-label="Copy room code">------</button>
         <span class="copy-hint" id="copy-hint">click to copy</span>
+        <button id="btn-copy-link" class="btn btn--ghost" style="font-size:.78rem;padding:.35rem .75rem;min-height:36px;margin-top:.25rem" aria-label="Copy invite link">🔗 Copy Link</button>
       </div>
     </div>
 
@@ -501,6 +558,21 @@
         </label>
         <label class="radio-option">
           <input type="radio" name="lobby-target" value="10" checked> 10 pts
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-group" id="lobby-difficulty-group" hidden>
+      <legend class="form-label">AI difficulty</legend>
+      <div class="radio-group" role="radiogroup">
+        <label class="radio-option">
+          <input type="radio" name="lobby-difficulty" value="easy"> Easy
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="lobby-difficulty" value="normal" checked> Normal
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="lobby-difficulty" value="hard"> Hard
         </label>
       </div>
     </fieldset>

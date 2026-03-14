@@ -364,6 +364,165 @@ describe('in-game disconnect', () => {
   });
 });
 
+describe('AI difficulty setting', () => {
+  it('reconnectToken is included in room_created', async () => {
+    const [c] = await openClients(1);
+    try {
+      c.send({ type: 'create_room', playerName: 'Alice' });
+      const msg = await c.nextOfType('room_created');
+      assert.ok(typeof msg.reconnectToken === 'string' && msg.reconnectToken.length > 0,
+        'room_created should include a non-empty reconnectToken');
+    } finally { await c.close(); }
+  });
+
+  it('reconnectToken is included in room_joined', async () => {
+    const [host, guest] = await openClients(2);
+    try {
+      host.send({ type: 'create_room', playerName: 'Host' });
+      const { code } = await host.nextOfType('room_created');
+
+      guest.send({ type: 'join_room', code, playerName: 'Guest' });
+      const msg = await guest.nextOfType('room_joined');
+      assert.ok(typeof msg.reconnectToken === 'string' && msg.reconnectToken.length > 0,
+        'room_joined should include a non-empty reconnectToken');
+    } finally { await Promise.all([host.close(), guest.close()]); }
+  });
+
+  it('start_game accepts aiDifficulty:hard without error', async () => {
+    const [host, guest] = await openClients(2);
+    try {
+      host.send({ type: 'create_room', playerName: 'Host' });
+      const { code } = await host.nextOfType('room_created');
+
+      guest.send({ type: 'join_room', code, playerName: 'Guest' });
+      await guest.nextOfType('room_joined');
+
+      host.send({ type: 'start_game', aiDifficulty: 'hard' });
+      const [h, g] = await Promise.all([
+        host.nextOfType('game_started'),
+        guest.nextOfType('game_started'),
+      ]);
+      assert.equal(h.state.phase, 'BIDDING_ROUND1');
+      assert.equal(g.state.phase, 'BIDDING_ROUND1');
+    } finally { await Promise.all([host.close(), guest.close()]); }
+  });
+
+  it('start_game with invalid aiDifficulty silently defaults to normal', async () => {
+    const [host, guest] = await openClients(2);
+    try {
+      host.send({ type: 'create_room', playerName: 'Host' });
+      const { code } = await host.nextOfType('room_created');
+
+      guest.send({ type: 'join_room', code, playerName: 'Guest' });
+      await guest.nextOfType('room_joined');
+
+      host.send({ type: 'start_game', aiDifficulty: 'godmode' });
+      const [h] = await Promise.all([
+        host.nextOfType('game_started'),
+        guest.nextOfType('game_started'),
+      ]);
+      // Game starts normally — invalid difficulty silently falls back to 'normal'
+      assert.equal(h.state.phase, 'BIDDING_ROUND1');
+    } finally { await Promise.all([host.close(), guest.close()]); }
+  });
+});
+
+describe('reconnect / rejoin', () => {
+  it('rejoin_room with invalid token returns an error', async () => {
+    const [c] = await openClients(1);
+    try {
+      c.send({ type: 'rejoin_room', reconnectToken: 'badbadbadbad' });
+      const msg = await c.nextOfType('error');
+      assert.ok(msg.message.length > 0);
+    } finally { await c.close(); }
+  });
+
+  it('rejoin_room with missing token returns an error', async () => {
+    const [c] = await openClients(1);
+    try {
+      c.send({ type: 'rejoin_room' }); // no reconnectToken field
+      const msg = await c.nextOfType('error');
+      assert.ok(msg.message.length > 0);
+    } finally { await c.close(); }
+  });
+
+  it('disconnected player can rejoin and receives game_rejoined', { timeout: 15000 }, async () => {
+    const [host, guest] = await openClients(2);
+    let guestToken = null;
+    let guestSeat  = null;
+    let roomCode   = null;
+
+    try {
+      host.send({ type: 'create_room', playerName: 'Host' });
+      const created = await host.nextOfType('room_created');
+      roomCode = created.code;
+
+      guest.send({ type: 'join_room', code: roomCode, playerName: 'Guest' });
+      const joinedMsg = await guest.nextOfType('room_joined');
+      guestToken = joinedMsg.reconnectToken;
+      guestSeat  = joinedMsg.seatIndex;
+
+      host.send({ type: 'start_game' });
+      await Promise.all([host.nextOfType('game_started'), guest.nextOfType('game_started')]);
+
+      // Guest disconnects mid-game
+      await guest.close();
+
+      // Host sees the disconnect
+      const disconnected = await host.nextOfType('player_disconnected');
+      assert.equal(disconnected.seatIndex, guestSeat);
+
+      // Guest reconnects with a fresh WebSocket using the saved token and room code
+      const rejoiner = makeClient();
+      await rejoiner.ready();
+      rejoiner.send({ type: 'rejoin_room', code: roomCode, reconnectToken: guestToken });
+
+      const [rejoined, playerRejoined] = await Promise.all([
+        rejoiner.nextOfType('game_rejoined'),
+        host.nextOfType('player_rejoined'),
+      ]);
+
+      assert.equal(rejoined.seatIndex, guestSeat, 'rejoined at correct seat');
+      assert.ok(rejoined.state, 'game state included in game_rejoined');
+      assert.equal(playerRejoined.seatIndex, guestSeat);
+      assert.equal(playerRejoined.name, 'Guest');
+
+      await rejoiner.close();
+    } finally { await host.close(); }
+  });
+
+  it('token can only be used by one connection at a time', { timeout: 15000 }, async () => {
+    const [host, guest] = await openClients(2);
+    let guestToken = null;
+    let roomCode   = null;
+
+    try {
+      host.send({ type: 'create_room', playerName: 'Host' });
+      const created = await host.nextOfType('room_created');
+      roomCode = created.code;
+
+      guest.send({ type: 'join_room', code: roomCode, playerName: 'Guest' });
+      const joinedMsg = await guest.nextOfType('room_joined');
+      guestToken = joinedMsg.reconnectToken;
+
+      host.send({ type: 'start_game' });
+      await Promise.all([host.nextOfType('game_started'), guest.nextOfType('game_started')]);
+
+      await guest.close();
+      await host.nextOfType('player_disconnected');
+
+      // First rejoin succeeds
+      const rejoiner1 = makeClient();
+      await rejoiner1.ready();
+      rejoiner1.send({ type: 'rejoin_room', code: roomCode, reconnectToken: guestToken });
+      const r1 = await rejoiner1.nextOfType('game_rejoined');
+      assert.ok(r1.seatIndex >= 0, 'first rejoin should succeed');
+
+      await rejoiner1.close();
+    } finally { await host.close(); }
+  });
+});
+
 describe('full hand — 4 human players', () => {
   it('plays through a complete hand to HAND_END', { timeout: 40000 }, async () => {
     const clients = await openClients(4);

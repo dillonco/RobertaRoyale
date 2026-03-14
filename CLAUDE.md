@@ -178,3 +178,52 @@ Player names must be escaped before inserting into `innerHTML`. Use the `escHtml
 - CSS variables defined in `:root` in `style.css` — `--accent` is `#93f005` (green).
 - WCAG AA contrast maintained. ARIA live regions (`#live-status`, `#live-alert`) used for screen-reader announcements via `announce()` in app.js.
 - Responsive breakpoints are `@media` blocks at the bottom of `style.css`.
+
+---
+
+## Mobile development
+
+### Target device
+
+Primary target is **iPhone 15 Pro** (393×852 CSS px, `device-pixel-ratio: 3`). All layout changes must be verified at this viewport first.
+
+### Layout structure
+
+The game table uses a 3-column CSS grid:
+
+```
+[west 60px] [center 1fr] [east 60px]
+```
+
+Breakpoints:
+- `≤ 480px` — `60px 1fr 60px` (mobile default)
+- `≤ 360px` — `52px 1fr 52px`
+- `≥ 768px` — `120px 1fr 120px`
+- `≥ 1024px` — `140px 1fr 140px`
+- `≥ 1280px` — `200px 1fr 200px`
+
+### East/west card backs
+
+East and west player cards are rendered upright in layout then rotated ±90° with `transform: rotate`. **CSS transforms do not affect layout flow** — the card's layout box stays its original size. This means the visual footprint extends outside the layout box and can overflow/clip if columns are too narrow.
+
+Current sizes at `≤ 480px`: `18×26px`. After rotation the visual width is 26px, which fits within the ~47px inner column width.
+
+At `≤ 360px`: `16×22px`.
+
+### Centering #human-hand-wrapper
+
+Use `left: 0; right: 0; margin: 0 auto` — **not** `left: 50%; transform: translateX(-50%)`. The translate approach breaks in Mobile Safari when any element causes document overflow, because `left: 50%` resolves against the wider document rather than the viewport.
+
+Both `html` and `body` have `overflow-x: hidden` to prevent horizontal scroll on mobile.
+
+### Touch targets
+
+All interactive elements (buttons, cards) must meet the 44×44px minimum touch target size. Cards smaller than 44px use padding or wrapper sizing to achieve this.
+
+### Testing checklist for CSS changes
+
+1. iPhone 15 Pro (393px) — solo game, all 4 players visible
+2. 360px viewport (Chrome DevTools → Galaxy S20) — all players visible
+3. Landscape mobile (`max-height: 500px`) — no overlap with hand wrapper
+4. Play cards to reduce hand size — fan stays centered
+5. Confirm east player is not clipped by `.game-table { overflow: hidden }`

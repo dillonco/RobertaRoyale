@@ -30,7 +30,7 @@
 
 /* ── Reset ────────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 16px; }
+html { font-size: 16px; overflow-x: hidden; }
 body {
   font-family: var(--font-ui);
   background-color: var(--bg-deep);
@@ -867,10 +867,12 @@ fieldset.form-group { border: none; padding: 0; }
 #human-hand-wrapper {
   position: absolute;
   bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  transform: none;
   width: 100%;
   max-width: 960px;
+  margin: 0 auto;
   background: transparent;
   border-top: none;
   padding: .3rem .75rem .4rem;
@@ -1274,7 +1276,7 @@ dialog::backdrop {
 ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
   .game-table {
-    grid-template-columns: 76px 1fr 76px;
+    grid-template-columns: 60px 1fr 60px;
     padding: .3rem;
     gap: .25rem;
   }
@@ -1321,16 +1323,24 @@ dialog::backdrop {
   .player-name { max-width: 72px; overflow: hidden; text-overflow: ellipsis; }
   .player-info { padding: 4px 8px; gap: 6px; }
 
-  /* East/west: stack name above tricks, fill the column width */
+  /* East/west: stack name above tricks, constrain to column width */
   .player-area--west .player-info,
   .player-area--east .player-info {
     flex-direction: column;
     gap: 2px;
+    width: auto;
     max-width: 100%;
-    width: 100%;
-    padding: 5px 6px;
-    border-radius: 10px;
+    padding: 4px 5px;
+    border-radius: 8px;
     box-sizing: border-box;
+  }
+
+  /* East/west card backs: shrink so rotated visual fits within column */
+  .player-area--west .player-hand-back .card--back,
+  .player-area--east .player-hand-back .card--back {
+    width: 18px;
+    height: 26px;
+    margin-top: -10px;
   }
   .player-area--west .player-name,
   .player-area--east .player-name {
@@ -1352,7 +1362,13 @@ dialog::backdrop {
 }
 
 @media (max-width: 360px) {
-  .game-table { grid-template-columns: 62px 1fr 62px; }
+  .game-table { grid-template-columns: 52px 1fr 52px; }
+  .player-area--west .player-hand-back .card--back,
+  .player-area--east .player-hand-back .card--back {
+    width: 16px;
+    height: 22px;
+    margin-top: -8px;
+  }
   .card--face { width: 44px; height: 64px; }
   .card-center-suit { font-size: 1rem; }
   .mode-grid { gap: .5rem; }

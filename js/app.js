@@ -526,6 +526,23 @@
     }
   }
 
+  function applyHandFan(handEl) {
+    const cards = Array.from(handEl.children);
+    const n = cards.length;
+    if (n === 0) return;
+    const center = (n - 1) / 2;
+    cards.forEach((btn, i) => {
+      const d       = i - center;
+      const rot     = d * 8;
+      const yBase   = d * d * 5;
+      const playable = btn.classList.contains('card--playable');
+      const y       = playable ? yBase - 6 : yBase;
+      const scale   = playable ? ' scale(1.07)' : '';
+      btn.style.transform = `rotate(${rot}deg) translateY(${y}px)${scale}`;
+      btn.style.zIndex    = String(i + 1);
+    });
+  }
+
   function renderHumanHand(s) {
     const handEl    = qs('#human-hand');
     const pickupEl  = qs('#hand-pickup-card');
@@ -562,6 +579,7 @@
       const playable = legal.some(c => c === card);
       return cardHtml(card, s.trump, { playable });
     }).join('');
+    applyHandFan(handEl);
 
     if (_isDealAnim) {
       const seatOrder = (mySeatIndex - (s.dealer + 1) + 4) % 4;

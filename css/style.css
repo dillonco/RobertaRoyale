@@ -925,22 +925,12 @@ fieldset.form-group { border: none; padding: 0; }
   padding: 0 40px;
 }
 #human-hand button { margin: 0 -10px; transform-origin: bottom center; transition: transform .2s cubic-bezier(.25,.46,.45,.94), box-shadow .25s; }
-#human-hand button:nth-child(1) { transform: rotate(-16deg) translateY(20px); z-index: 1; }
-#human-hand button:nth-child(2) { transform: rotate(-8deg)  translateY(5px);  z-index: 2; }
-#human-hand button:nth-child(3) { transform: rotate(0deg)   translateY(0);    z-index: 3; }
-#human-hand button:nth-child(4) { transform: rotate(8deg)   translateY(5px);  z-index: 4; }
-#human-hand button:nth-child(5) { transform: rotate(16deg)  translateY(20px); z-index: 5; }
 
-/* Playable cards in hand: lime glow + scale, preserving fan rotation */
+/* Playable cards in hand: lime glow + scale (transform set via JS per-hand-size) */
 #human-hand .card--playable {
   box-shadow: 0 0 0 2px rgba(147,240,5,.75), 0 0 18px rgba(147,240,5,.35), 0 6px 16px rgba(0,0,0,.35);
   z-index: 6 !important;
 }
-#human-hand .card--playable:nth-child(1) { transform: rotate(-16deg) translateY(14px) scale(1.07); }
-#human-hand .card--playable:nth-child(2) { transform: rotate(-8deg)  translateY(-1px) scale(1.07); }
-#human-hand .card--playable:nth-child(3) { transform: rotate(0deg)   translateY(-6px) scale(1.07); }
-#human-hand .card--playable:nth-child(4) { transform: rotate(8deg)   translateY(-1px) scale(1.07); }
-#human-hand .card--playable:nth-child(5) { transform: rotate(16deg)  translateY(14px) scale(1.07); }
 #human-hand .card--playable:hover {
   transform: translateY(-28px) scale(1.09) !important;
   z-index: 10 !important;
@@ -1284,7 +1274,7 @@ dialog::backdrop {
 ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
   .game-table {
-    grid-template-columns: 56px 1fr 56px;
+    grid-template-columns: 76px 1fr 76px;
     padding: .3rem;
     gap: .25rem;
   }
@@ -1330,10 +1320,28 @@ dialog::backdrop {
   /* Player name pills */
   .player-name { max-width: 72px; overflow: hidden; text-overflow: ellipsis; }
   .player-info { padding: 4px 8px; gap: 6px; }
+
+  /* East/west: stack name above tricks, fill the column width */
   .player-area--west .player-info,
-  .player-area--east .player-info { max-width: 100%; overflow: hidden; }
+  .player-area--east .player-info {
+    flex-direction: column;
+    gap: 2px;
+    max-width: 100%;
+    width: 100%;
+    padding: 5px 6px;
+    border-radius: 10px;
+    box-sizing: border-box;
+  }
   .player-area--west .player-name,
-  .player-area--east .player-name { max-width: 48px; }
+  .player-area--east .player-name {
+    max-width: 100%;
+    font-size: 11px;
+    justify-content: center;
+  }
+  .player-area--west .player-tricks,
+  .player-area--east .player-tricks { justify-content: center; display: flex; }
+  .player-area--west .player-status,
+  .player-area--east .player-status { text-align: center; }
 
 }
 
@@ -1344,14 +1352,12 @@ dialog::backdrop {
 }
 
 @media (max-width: 360px) {
-  .game-table { grid-template-columns: 52px 1fr 52px; }
+  .game-table { grid-template-columns: 62px 1fr 62px; }
   .card--face { width: 44px; height: 64px; }
   .card-center-suit { font-size: 1rem; }
   .mode-grid { gap: .5rem; }
   .mode-card { padding: 1rem .75rem; }
   #human-hand { height: 140px; padding: 0 8px; }
-  .player-area--west .player-name,
-  .player-area--east .player-name { max-width: 36px; }
 }
 
 @media (min-width: 768px) {

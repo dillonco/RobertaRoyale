@@ -1006,9 +1006,7 @@ fieldset.form-group { border: none; padding: 0; }
   z-index: 10;
   transition: bottom .25s cubic-bezier(.25,.46,.45,.94);
 }
-#human-hand-wrapper.panel-open {
-  bottom: 220px;
-}
+/* panel-open bottom is set dynamically by JS based on controls panel height */
 #human-hand-wrapper > * {
   pointer-events: auto;
 }
@@ -1520,7 +1518,6 @@ dialog::backdrop {
 
   /* Hand fan — pulled near bottom on mobile, cards more spread */
   #human-hand-wrapper { bottom: -16px; }
-  #human-hand-wrapper.panel-open { bottom: 220px; }
   #human-hand button { margin: 0 -4px; }
   #human-hand { height: 155px; padding: 0 16px; }
   #hand-pickup-card .card--face { transform: scale(1.0); }
@@ -2127,20 +2124,6 @@ dialog::backdrop {
   font-weight: 400;
 }
 
-/* ── Trump ambient border on #trick-center ───────────────────────────────── */
-#trick-center {
-  border: 2px solid transparent;
-  border-radius: 12px;
-  transition: border-color .5s ease;
-}
-#screen-game[data-trump="hearts"] #trick-center,
-#screen-game[data-trump="diamonds"] #trick-center {
-  border-color: rgba(229,57,53,.35);
-}
-#screen-game[data-trump="clubs"] #trick-center,
-#screen-game[data-trump="spades"] #trick-center {
-  border-color: rgba(255,255,255,.12);
-}
 
 /* ── Trick winner overlay ─────────────────────────────────────────────────── */
 #trick-winner-overlay {

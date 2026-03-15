@@ -1850,7 +1850,7 @@ dialog::backdrop {
 /* ── Activity Log ─────────────────────────────────────────────────────────── */
 .activity-log {
   position: fixed;
-  right: .75rem;
+  left: .75rem;
   bottom: .75rem;
   width: 210px;
   max-height: 38vh;

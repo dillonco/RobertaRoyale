@@ -17,14 +17,7 @@
   // ── Era name generator ───────────────────────────────────────────────────
 
   const ERA_NAMES = [
-    'Roberta','Beverly','Shirley','Marlene','Lorraine','Phyllis','Dolores',
-    'Norma','Gloria','Joanne','Carolyn','Marilyn','Patricia','Sandra','Judith',
-    'Barbara','Donna','Linda','Sharon','Karen','Susan','Nancy','Diane','Carol',
-    'Janet','Kathleen','Margaret','Dorothy','Ruth','Helen','Betty','Frances',
-    'Geraldine','Evelyn','Vivian','Audrey','Lois','Elaine','Bonnie','Janice',
-    'Gail','Brenda','Cheryl','Sheila','Maureen','Colleen','Irene','Edith',
-    'Joyce','Bernice','Mildred','Arlene','Constance','Wanda','Velma','Darlene',
-    'Rhonda','Glenda','Jeanette','Rosemary','Alberta','Wilma','Thelma','Doreen'
+    'Betty','Beulah','Keri','Velna','Jackie','Donna','Roberta'
   ];
 
   function randomEraName() {
@@ -38,7 +31,6 @@
   let aiDifficulty = 'normal';
   let playerName   = '';
   let aiPending    = false;   // Prevent double-scheduling
-  let tramEnabled  = true;    // House rule: auto-play TRAM sequences
   let tramActive   = false;   // Currently inside a TRAM auto-play
   let tramSeat     = null;    // Who called TRAM
   let _lastDealKey      = null;
@@ -351,11 +343,12 @@
   }
 
   function startPracticeGame() {
-    playerName   = (qs('#setup-name').value.trim()) || randomEraName();
-    aiDifficulty = qs('input[name="difficulty"]:checked').value;
-    tramEnabled  = qs('#setup-tram').checked;
-    gameSpeed    = qs('input[name="setup-speed"]:checked')?.value || 'normal';
-    const target = parseInt(qs('input[name="target"]:checked').value, 10);
+    playerName      = (qs('#setup-name').value.trim()) || randomEraName();
+    aiDifficulty    = qs('input[name="difficulty"]:checked').value;
+    gameSpeed       = qs('input[name="setup-speed"]:checked')?.value || 'normal';
+    const target        = parseInt(qs('input[name="target"]:checked').value, 10);
+    const canadianLoner = qs('#setup-canadian-loner')?.checked ?? false;
+    const tramEnabled   = qs('#setup-tram')?.checked ?? true;
 
     // Reset multiplayer state for solo play
     multiplayerMode = false;
@@ -367,7 +360,7 @@
 
     const names = [playerName, 'West AI', 'Partner AI', 'East AI'];
     _prevScores = [0, 0];
-    gameState = E.createGame(names, 0, target);
+    gameState = E.createGame(names, 0, target, { canadianLoner, tramEnabled });
     clearActivityLog();
     showScreen('screen-game');
     renderGame();
@@ -607,6 +600,7 @@
              <div class="card-back-pattern"></div>
            </div>`;
         }).join('');
+        if (!isSittingOut) applyOpponentFan(handEl, pos);
       }
     }
 
@@ -735,6 +729,31 @@
     });
   }
 
+  function applyOpponentFan(handEl, pos) {
+    const cards = Array.from(handEl.children);
+    const n = cards.length;
+    if (n === 0) return;
+    const center = (n - 1) / 2;
+    cards.forEach((card, i) => {
+      const d   = i - center;
+      const rot = d * 6;
+      card.style.zIndex = String(i + 1);
+      if (pos === 'north') {
+        // Pivot from top so cards fan inward toward the table center
+        card.style.transformOrigin = 'top center';
+        card.style.transform = `rotate(${rot}deg)`;
+      } else if (pos === 'west') {
+        // Combine base 90° with fan; pivot from right edge toward table center
+        card.style.transformOrigin = 'right center';
+        card.style.transform = `rotate(${90 + rot}deg)`;
+      } else if (pos === 'east') {
+        // Mirror of west: negate d so the fan spreads in the opposite direction
+        card.style.transformOrigin = 'left center';
+        card.style.transform = `rotate(${-90 - rot}deg)`;
+      }
+    });
+  }
+
   function renderHumanHand(s) {
     clearCardSelection();
     const handEl    = qs('#human-hand');
@@ -767,8 +786,16 @@
       }
     }
 
+    // Sort by suit then rank descending for display
+    const SUIT_ORDER = { clubs: 0, diamonds: 1, hearts: 2, spades: 3 };
+    const sortedHand = fanHand.slice().sort((a, b) => {
+      const sd = SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit];
+      if (sd !== 0) return sd;
+      return E.RANK_VALUE[b.rank] - E.RANK_VALUE[a.rank];
+    });
+
     handEl.setAttribute('aria-label', `Your hand — ${hand.length} cards`);
-    handEl.innerHTML = fanHand.map(card => {
+    handEl.innerHTML = sortedHand.map(card => {
       const playable = legal.some(c => c === card);
       return cardHtml(card, s.trump, { playable });
     }).join('');
@@ -932,6 +959,8 @@
 
   function renderBidRound1(s, panel) {
     const isDealer = s.dealer === mySeatIndex;
+    const isOrderingPartner = !isDealer && (mySeatIndex + 2) % 4 === s.dealer;
+    const forcedLoner = s.canadianLoner && isOrderingPartner;
     const orderText = isDealer ? 'Pick It Up' : 'Order It Up';
     const passText  = isDealer ? 'Turn It Down' : 'Pass';
     const suit = s.upCard.suit;
@@ -942,25 +971,25 @@
         <span class="bid-sub">Make ${suit} trump?</span>
       </div>
       <div class="bid-buttons" role="group" aria-label="Round 1 bidding options">
-        <button class="btn btn--primary" id="bid-order">${orderText}</button>
-        <button class="btn btn--secondary" id="bid-order-alone">${orderText} — Go Alone</button>
+        <button class="btn btn--primary" id="bid-order">${orderText}${forcedLoner ? ' — Go Alone' : ''}</button>
+        ${forcedLoner ? '' : `<button class="btn btn--secondary" id="bid-order-alone">${orderText} — Go Alone</button>`}
         <button class="btn btn--ghost" id="bid-pass">${passText}</button>
       </div>`;
 
     qs('#bid-order', panel).addEventListener('click', () => {
       if (multiplayerMode) {
-        Network.send({ type: 'game_action', action: 'order_up', alone: false });
+        Network.send({ type: 'game_action', action: 'order_up', alone: forcedLoner || false });
       } else {
         const upSuit = s.upCard.suit;
         gameState = E.actionOrderUp(s, 0, false);
         renderGame();
-        announce(`Trump is ${upSuit}`);
-        logActivity(`You ordered up ${E.SUIT_SYMBOL[upSuit]} ${upSuit} — picking up ${cardStr(s.upCard)}`, 'highlight');
+        announce(`Trump is ${upSuit}${forcedLoner ? ' — you go alone!' : ''}`);
+        logActivity(`You ordered up ${E.SUIT_SYMBOL[upSuit]} ${upSuit} — picking up ${cardStr(s.upCard)}${forcedLoner ? ' · go alone!' : ''}`, 'highlight');
         processGameLoop();
       }
     });
 
-    qs('#bid-order-alone', panel).addEventListener('click', () => {
+    if (!forcedLoner) qs('#bid-order-alone', panel).addEventListener('click', () => {
       openAloneDialog(true, (alone) => {
         if (multiplayerMode) {
           Network.send({ type: 'game_action', action: 'order_up', alone });
@@ -1058,94 +1087,8 @@
   }
 
   // ── TRAM Detection ───────────────────────────────────────────────────────
-
-  function detectTRAM(s) {
-    if (s.phase !== P.PLAYING || s.currentTrick.length !== 0) return null;
-    const tricksLeft = 5 - s.tricksPlayed;
-    if (tricksLeft < 2) return null;
-
-    const trump = s.trump;
-
-    function cardVal(card, ledSuit) {
-      if (E.effectiveSuit(card, trump) === trump)
-        return 100 + E.trumpStrength(card, trump);
-      if (ledSuit && card.suit === ledSuit)
-        return 10 + E.RANK_VALUE[card.rank];
-      return E.RANK_VALUE[card.rank];
-    }
-
-    function strongest(cards, ledSuit) {
-      return cards.reduce((best, c) =>
-        cardVal(c, ledSuit) > cardVal(best, ledSuit) ? c : best
-      );
-    }
-
-    function weakest(cards, ledSuit) {
-      return cards.reduce((low, c) =>
-        cardVal(c, ledSuit) < cardVal(low, ledSuit) ? c : low
-      );
-    }
-
-    for (let p = 0; p < 4; p++) {
-      if (s.sittingOut === p) continue;
-      if (!s.hands[p] || s.hands[p].length === 0) continue;
-
-      const simHands = s.hands.map(h => h.slice());
-      let leader = s.currentPlayer;
-      let pWinsAll = true;
-
-      for (let t = 0; t < tricksLeft; t++) {
-        if (simHands[leader].length === 0) { pWinsAll = false; break; }
-
-        const leadCard = strongest(simHands[leader], null);
-        const ledSuit  = E.effectiveSuit(leadCard, trump);
-        simHands[leader] = simHands[leader].filter(c => c !== leadCard);
-
-        let bestCard   = leadCard;
-        let bestPlayer = leader;
-
-        for (let i = 1; i < 4; i++) {
-          const seat = (leader + i) % 4;
-          if (s.sittingOut === seat) continue;
-          if (simHands[seat].length === 0) continue;
-
-          const legal = E.getLegalCards(simHands[seat], ledSuit, trump);
-          const isPartner   = (seat % 2) === (p % 2) && seat !== p;
-          const isOpponent  = !isPartner && seat !== p;
-          let play;
-
-          if (seat === p) {
-            // p always plays their strongest card to try to win
-            play = strongest(legal, ledSuit);
-          } else if (isOpponent) {
-            // Opponents play adversarially: strongest card that beats the current
-            // winner if possible; otherwise throw their weakest (keep strong cards
-            // for later tricks where they might beat p).
-            const canBeat = legal.filter(c => E.cardBeats(c, bestCard, ledSuit, trump));
-            play = canBeat.length > 0 ? strongest(canBeat, ledSuit) : weakest(legal, ledSuit);
-          } else {
-            // Partner cooperates: always throw their weakest card so they never
-            // accidentally take the trick away from p.
-            play = weakest(legal, ledSuit);
-          }
-
-          simHands[seat] = simHands[seat].filter(c => c !== play);
-
-          if (E.cardBeats(play, bestCard, ledSuit, trump)) {
-            bestCard   = play;
-            bestPlayer = seat;
-          }
-        }
-
-        if (bestPlayer !== p) { pWinsAll = false; break; }
-        leader = p;
-      }
-
-      if (pWinsAll) return p;
-    }
-
-    return null;
-  }
+  // Logic lives in euchre.js so it can be unit-tested independently.
+  function detectTRAM(s) { return E.detectTRAM(s); }
 
   function showTRAMBanner(playerName) {
     const banner  = qs('#tram-banner');
@@ -1236,7 +1179,7 @@
     }
 
     // Check for TRAM at the start of each trick
-    if (phase === P.PLAYING && s.currentTrick.length === 0 && !tramActive && tramEnabled) {
+    if (phase === P.PLAYING && s.currentTrick.length === 0 && !tramActive && s.tramEnabled) {
       const tram = detectTRAM(s);
       if (tram !== null) {
         tramActive = true;
@@ -1368,13 +1311,19 @@
     if (!panel || !r) return;
 
     const messages = {
-      NORMAL:     { icon: '✓', title: 'Makers took it!',        cls: 'result--good' },
-      MARCH:      { icon: '★', title: 'March! All 5 tricks!',   cls: 'result--great' },
-      LONE_MARCH: { icon: '★', title: 'Lone March! 4 points!',  cls: 'result--great' },
-      EUCHRE:     { icon: '✗', title: 'Euchred!',               cls: 'result--bad' },
+      NORMAL:     { icon: '✓', title: 'Makers took it!'       },
+      MARCH:      { icon: '★', title: 'March! All 5 tricks!'  },
+      LONE_MARCH: { icon: '★', title: 'Lone March! 4 points!' },
+      EUCHRE:     { icon: '✗', title: 'Euchred!'              },
     };
 
-    const { icon, title, cls } = messages[r.type] || messages.NORMAL;
+    const myTeam  = multiplayerMode ? mySeatIndex % 2 : 0;
+    const weWon   = r.scoringTeam === myTeam;
+    const isMarch = r.type === 'MARCH' || r.type === 'LONE_MARCH';
+    const cls  = weWon ? (isMarch ? 'result--great' : 'result--good') : 'result--bad';
+    const icon = weWon ? (isMarch ? '★' : '✓') : '✗';
+
+    const { title } = messages[r.type] || messages.NORMAL;
     const makerName   = s.players[s.maker].name;
 
     const descriptions = {
@@ -1406,7 +1355,6 @@
     panel.setAttribute('aria-hidden', 'false');
     announce(title + ' ' + descriptions[r.type], true);
 
-    const myTeam  = multiplayerMode ? mySeatIndex % 2 : 0;
     logActivity(`${title} — ${descriptions[r.type]}`, 'score');
     logActivity(`Score: Us ${s.scores[myTeam]} — Them ${s.scores[1 - myTeam]}`, 'score');
 
@@ -1625,21 +1573,25 @@
   function renderLobbySeats(players) {
     const container = qs('#lobby-seats');
     if (!container) return;
-    const SEAT_LABELS = ['South (You)', 'West', 'North (Partner)', 'East'];
+    const SEAT_LABELS = ['South', 'West', 'North', 'East'];
     const TEAM_LABELS = ['Team A', 'Team B', 'Team A', 'Team B'];
     container.innerHTML = Array.from({ length: 4 }, (_, i) => {
       const p      = players.find(pl => pl.seatIndex === i);
       const filled = !!p;
-      const isMe   = p && p.id === (Network.isConnected() ? undefined : null) || (p && p.seatIndex === mySeatIndex);
       const meFlag = filled && p.seatIndex === mySeatIndex;
+      const chairIcon = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="1.5" width="10" height="5" rx="1.5"/><rect x="2" y="7.5" width="12" height="2.5" rx="1"/><line x1="4.5" y1="10" x2="3.5" y2="14.5"/><line x1="11.5" y1="10" x2="12.5" y2="14.5"/></svg>`;
+      const moveBtn = !meFlag
+        ? `<button class="btn lobby-seat-move" data-move-to="${i}" aria-label="${filled ? `Swap with ${escHtml(p.name)}` : `Move to ${SEAT_LABELS[i]}`}">${chairIcon}</button>`
+        : '';
       return `
         <div class="lobby-seat lobby-seat--${filled ? 'filled' : 'empty'}${meFlag ? ' lobby-seat--me' : ''}${i === 0 && p ? ' lobby-seat--host' : ''}"
              role="listitem">
           <div class="lobby-seat-dot"></div>
           <div class="lobby-seat-info">
             <div class="lobby-seat-name">${filled ? escHtml(p.name) : 'Empty'}</div>
-            <div class="lobby-seat-sub">${filled ? TEAM_LABELS[i] : SEAT_LABELS[i]}</div>
+            <div class="lobby-seat-sub">${meFlag ? 'You — ' : ''}${SEAT_LABELS[i]} · ${TEAM_LABELS[i]}</div>
           </div>
+          ${moveBtn}
         </div>`;
     }).join('');
   }
@@ -1653,6 +1605,8 @@
     if (tg) tg.hidden = false;
     const dg = qs('#lobby-difficulty-group');
     if (dg) dg.hidden = false;
+    const rg = qs('#lobby-rules-group');
+    if (rg) rg.hidden = false;
     const count = players.filter(p => p.connected !== false).length;
     btn.disabled = count < 2;
     btn.textContent = count < 2
@@ -1692,14 +1646,23 @@
     });
 
     qs('#btn-start-private').addEventListener('click', () => {
-      const target     = parseInt(qs('input[name="lobby-target"]:checked')?.value, 10) || 10;
-      const difficulty = qs('input[name="lobby-difficulty"]:checked')?.value || 'normal';
-      Network.send({ type: 'start_game', target, aiDifficulty: difficulty });
+      const target        = parseInt(qs('input[name="lobby-target"]:checked')?.value, 10) || 10;
+      const difficulty    = qs('input[name="lobby-difficulty"]:checked')?.value || 'normal';
+      const tram          = qs('#lobby-tram')?.checked ?? true;
+      const canadianLoner = qs('#lobby-canadian-loner')?.checked ?? false;
+      Network.send({ type: 'start_game', target, aiDifficulty: difficulty, tram, canadianLoner });
     });
 
     qs('#btn-leave-lobby').addEventListener('click', () => {
       leaveMultiplayer();
       showScreen('screen-home');
+    });
+
+    qs('#lobby-seats').addEventListener('click', e => {
+      const btn = e.target.closest('.lobby-seat-move');
+      if (!btn) return;
+      const seat = parseInt(btn.dataset.moveTo, 10);
+      if (!isNaN(seat)) Network.send({ type: 'change_seat', seat });
     });
   }
 
@@ -1736,6 +1699,8 @@
     });
 
     Network.on('player_joined', msg => {
+      const statusEl = qs('#lobby-status');
+      if (statusEl) statusEl.textContent = '';
       renderLobbySeats(msg.players);
       updateLobbyStartBtn(msg.players);
       const newP = msg.players[msg.players.length - 1];
@@ -1748,6 +1713,27 @@
       const name = msg.name || 'A player';
       logActivity(`${escHtml(name)} left the lobby`);
       announce(`${name} left the room`);
+    });
+
+    Network.on('seat_changed', msg => {
+      mySeatIndex = msg.seatIndex;
+      try {
+        const rd = loadReconnectData();
+        if (rd) saveReconnectData(rd.code, rd.token, msg.seatIndex);
+      } catch (_) {}
+      renderLobbySeats(msg.players);
+      updateLobbyStartBtn(msg.players);
+      const SEAT_LABELS = ['South', 'West', 'North', 'East'];
+      const TEAM_LABELS = ['Team A', 'Team B', 'Team A', 'Team B'];
+      const statusEl = qs('#lobby-status');
+      if (statusEl) statusEl.textContent = `Moved to ${SEAT_LABELS[msg.seatIndex]} · ${TEAM_LABELS[msg.seatIndex]}`;
+      announce(`Moved to ${SEAT_LABELS[msg.seatIndex]}`);
+      // Flash the moved seat
+      const seats = qsa('.lobby-seat', qs('#lobby-seats'));
+      if (seats[msg.seatIndex]) {
+        seats[msg.seatIndex].classList.add('lobby-seat--just-moved');
+        setTimeout(() => seats[msg.seatIndex]?.classList.remove('lobby-seat--just-moved'), 650);
+      }
     });
 
     Network.on('host_changed', msg => {
@@ -1836,6 +1822,35 @@
       }
 
       renderGame();
+
+      // Reset TRAM when no longer playing
+      if (gameState.phase !== P.PLAYING) { tramActive = false; tramSeat = null; }
+
+      // TRAM detection + human auto-play in multiplayer
+      if (gameState.tramEnabled && gameState.phase === P.PLAYING &&
+          gameState.currentTrick.length === 0 && !tramActive) {
+        const tram = detectTRAM(gameState);
+        if (tram !== null) {
+          tramActive = true;
+          tramSeat   = tram;
+          const tramName = gameState.players[tram].name;
+          logActivity(`${tramName} — TRAM! The Rest Are Mine`, 'highlight');
+          announce(`${tramName} — TRAM!`);
+          showTRAMBanner(tramName);
+        }
+      }
+      if (tramActive && gameState.phase === P.PLAYING &&
+          gameState.currentPlayer === mySeatIndex) {
+        const snap = gameState;
+        setTimeout(() => {
+          if (!gameState || gameState !== snap) return;
+          const hand  = gameState.hands[mySeatIndex];
+          const legal = E.getLegalCards(hand, gameState.ledSuit, gameState.trump);
+          const card  = legal[0];
+          if (!card) return;
+          Network.send({ type: 'game_action', action: 'play_card', cardIndex: hand.indexOf(card) });
+        }, 350 + Math.random() * 150);
+      }
 
       // Show hand result when entering HAND_END
       if (prevPhase !== P.HAND_END && gameState.phase === P.HAND_END) {

@@ -19,6 +19,10 @@ const MIME = {
   '.js':   'text/javascript; charset=utf-8',
   '.ico':  'image/x-icon',
   '.png':  'image/png',
+  '.svg':  'image/svg+xml',
+  '.xml':  'application/xml',
+  '.txt':  'text/plain; charset=utf-8',
+  '.webmanifest': 'application/manifest+json',
 };
 
 // ── Room state ────────────────────────────────────────────────────────────────
@@ -103,6 +107,26 @@ function handleJoin(ws, msg) {
   broadcast(room, { type: 'player_joined', players: playerList(room) }, ws.id);
 }
 
+function handleChangeSeat(ws, msg) {
+  const room = rooms.get(ws.roomCode);
+  if (!room || room.gameState) return;
+
+  const target    = parseInt(msg.seat, 10);
+  if (isNaN(target) || target < 0 || target > 3) return;
+
+  const requester = room.players.find(p => p.id === ws.id);
+  if (!requester || requester.seatIndex === target) return;
+
+  const occupant  = room.players.find(p => p.seatIndex === target);
+  if (occupant) occupant.seatIndex = requester.seatIndex;
+  requester.seatIndex = target;
+
+  const list = playerList(room);
+  room.players.forEach(p => {
+    if (p.ws) send(p.ws, { type: 'seat_changed', players: list, seatIndex: p.seatIndex });
+  });
+}
+
 function handleStart(ws, msg) {
   const room = rooms.get(ws.roomCode);
   if (!room || room.hostId !== ws.id) return;
@@ -118,7 +142,10 @@ function handleStart(ws, msg) {
 
   room.aiSeats      = aiSeats;
   room.aiDifficulty = diff;
-  room.gameState    = Euchre.createGame(names, 0, target);
+  room.gameState    = Euchre.createGame(names, 0, target, {
+    canadianLoner: !!msg.canadianLoner,
+    tramEnabled:   msg.tram !== false,
+  });
 
   room.players.forEach(p => {
     send(p.ws, {
@@ -394,6 +421,7 @@ wss.on('connection', ws => {
         case 'create_room': handleCreate(ws, msg); break;
         case 'join_room':   handleJoin(ws, msg);   break;
         case 'rejoin_room': handleRejoin(ws, msg); break;
+        case 'change_seat': handleChangeSeat(ws, msg); break;
         case 'start_game':  handleStart(ws, msg);  break;
         case 'game_action': handleAction(ws, msg); break;
       }

@@ -433,3 +433,166 @@ describe('teamOf', () => {
     assert.equal(Euchre.teamOf(3), 1);
   });
 });
+
+// ── detectTRAM ────────────────────────────────────────────────────────────────
+
+/**
+ * Build a minimal PLAYING state for TRAM tests.
+ * trump = spades, makerTeam = 1 (seats 1 & 3), seat 0 leads.
+ */
+function makeTramState(overrides = {}) {
+  return {
+    phase: Phase.PLAYING,
+    trump: 'spades',
+    maker: 1, makerTeam: 1,
+    alone: false, alonePlayer: null, sittingOut: null,
+    currentPlayer: 0,
+    currentTrick: [],
+    ledSuit: null,
+    tricksPlayed: 0,
+    teamTricks: [0, 0],
+    // Each seat holds exactly the cards shown — tests override hands as needed
+    hands: [[], [], [], []],
+    tramEnabled: true,
+    ...overrides,
+  };
+}
+
+describe('detectTRAM — basic validity', () => {
+  it('returns null when a trick is in progress', () => {
+    const s = makeTramState({
+      currentTrick: [{ card: card('spades', 'A'), playerIndex: 0 }],
+      hands: [
+        [card('spades', 'J'), card('spades', 'K')],
+        [card('hearts', '9'), card('clubs', '9')],
+        [card('diamonds', '9'), card('hearts', '10')],
+        [card('clubs', '10'), card('diamonds', '10')],
+      ],
+    });
+    assert.equal(Euchre.detectTRAM(s), null);
+  });
+
+  it('returns null when fewer than 2 tricks remain', () => {
+    const s = makeTramState({
+      tricksPlayed: 4,
+      teamTricks: [2, 2],
+      hands: [
+        [card('spades', 'A')],
+        [card('hearts', '9')],
+        [card('diamonds', '9')],
+        [card('clubs', '9')],
+      ],
+    });
+    assert.equal(Euchre.detectTRAM(s), null);
+  });
+
+  it('returns the leader seat when they hold all top cards', () => {
+    // Seat 0 leads, holds J♠ (right bower) and A♠ — both top trump.
+    // All other hands hold only off-suit low cards with no trump left.
+    const s = makeTramState({
+      tricksPlayed: 3,
+      teamTricks: [3, 0],
+      makerTeam: 0,
+      hands: [
+        [card('spades', 'J'), card('spades', 'A')],   // seat 0 leads
+        [card('hearts', '9'), card('clubs', '9')],
+        [card('diamonds', '9'), card('hearts', '10')],
+        [card('clubs', '10'), card('diamonds', '10')],
+      ],
+    });
+    assert.equal(Euchre.detectTRAM(s), 0);
+  });
+});
+
+describe('detectTRAM — only the trick leader may call', () => {
+  it('does not fire for a non-leader even if they hold guaranteed winners', () => {
+    // Seat 3 holds two top cards but seat 0 is leading — TRAM must be null
+    const s = makeTramState({
+      tricksPlayed: 3,
+      teamTricks: [0, 3],
+      currentPlayer: 0,
+      hands: [
+        [card('hearts', '9'), card('clubs', '9')],    // seat 0 leads — weak hand
+        [card('diamonds', '9'), card('hearts', '10')],
+        [card('clubs', '10'), card('diamonds', '10')],
+        [card('spades', 'J'), card('spades', 'A')],   // seat 3 has the goods but doesn't lead
+      ],
+    });
+    assert.equal(Euchre.detectTRAM(s), null);
+  });
+
+  it('fires for seat 3 when seat 3 is the leader', () => {
+    const s = makeTramState({
+      tricksPlayed: 3,
+      teamTricks: [0, 3],
+      currentPlayer: 3,
+      makerTeam: 1,
+      hands: [
+        [card('hearts', '9'), card('clubs', '9')],
+        [card('diamonds', '9'), card('hearts', '10')],
+        [card('clubs', '10'), card('diamonds', '10')],
+        [card('spades', 'J'), card('spades', 'A')],   // seat 3 leads — has top trump
+      ],
+    });
+    assert.equal(Euchre.detectTRAM(s), 3);
+  });
+});
+
+describe('detectTRAM — outcome already decided', () => {
+  it('suppresses TRAM when euchre is inevitable (makers cannot reach 3)', () => {
+    // Non-makers (team 0) have 3 tricks; makers (team 1) have 0 with 2 left.
+    // 0 + 2 < 3 → euchre is locked in.
+    const s = makeTramState({
+      tricksPlayed: 3,
+      teamTricks: [3, 0],   // team 0 non-makers have 3; team 1 makers have 0
+      makerTeam: 1,
+      currentPlayer: 3,     // seat 3 (maker-side) leads and holds two aces
+      hands: [
+        [card('hearts', '9'), card('clubs', '9')],
+        [card('diamonds', '9'), card('hearts', '10')],
+        [card('clubs', '10'), card('diamonds', '10')],
+        [card('spades', 'J'), card('spades', 'A')],
+      ],
+    });
+    assert.equal(Euchre.detectTRAM(s), null,
+      'TRAM must be suppressed when euchre is already guaranteed');
+  });
+
+  it('suppresses TRAM when make is secured and march is impossible', () => {
+    // Makers (team 0) have 3 tricks; non-makers (team 1) have 1 trick.
+    // March (5 tricks) is impossible — score is already determined.
+    const s = makeTramState({
+      tricksPlayed: 4,
+      teamTricks: [3, 1],
+      makerTeam: 0,
+      currentPlayer: 0,
+      hands: [
+        [card('spades', 'J')],    // seat 0 leads — would win this trick
+        [card('hearts', '9')],
+        [card('diamonds', '9')],
+        [card('clubs', '9')],
+      ],
+    });
+    assert.equal(Euchre.detectTRAM(s), null,
+      'TRAM must be suppressed when score cannot change');
+  });
+
+  it('allows TRAM when makers have 3 tricks and march is still possible (no tricks lost)', () => {
+    // Makers (team 0) have 3 tricks; non-makers have 0. 2 tricks left.
+    // March is still possible — TRAM is meaningful.
+    const s = makeTramState({
+      tricksPlayed: 3,
+      teamTricks: [3, 0],
+      makerTeam: 0,
+      currentPlayer: 0,
+      hands: [
+        [card('spades', 'J'), card('spades', 'A')],
+        [card('hearts', '9'), card('clubs', '9')],
+        [card('diamonds', '9'), card('hearts', '10')],
+        [card('clubs', '10'), card('diamonds', '10')],
+      ],
+    });
+    assert.equal(Euchre.detectTRAM(s), 0,
+      'TRAM is valid when a march is still achievable');
+  });
+});

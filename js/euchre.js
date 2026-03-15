@@ -138,7 +138,7 @@ const Euchre = (() => {
    * @param {number}   dealerIndex  0-3
    * @param {number}   targetScore  First to this wins (5, 7, or 10).
    */
-  function createGame(playerNames, dealerIndex = 0, targetScore = 10) {
+  function createGame(playerNames, dealerIndex = 0, targetScore = 10, options = {}) {
     const { hands, upCard } = dealHands();
     return {
       players: playerNames.map((name, i) => ({ id: i, name })),
@@ -167,6 +167,8 @@ const Euchre = (() => {
       stickDealer:    false,
       pendingPhase:   null,
       nextTrickLeader: null,
+      canadianLoner:  !!options.canadianLoner,
+      tramEnabled:    options.tramEnabled !== undefined ? !!options.tramEnabled : true,
     };
   }
 
@@ -175,6 +177,11 @@ const Euchre = (() => {
   function actionOrderUp(state, playerIndex, goAlone = false) {
     if (state.phase !== Phase.BIDDING_ROUND1 || state.currentBidder !== playerIndex)
       throw new Error('actionOrderUp: invalid state');
+
+    // Canadian Loner: ordering up your partner forces a loner
+    const isOrderingPartner = playerIndex !== state.dealer &&
+                              (playerIndex + 2) % 4 === state.dealer;
+    if (state.canadianLoner && isOrderingPartner) goAlone = true;
 
     const trump = state.upCard.suit;
     // Dealer picks up the upCard (temporarily 6 cards; they'll discard)
@@ -392,6 +399,89 @@ const Euchre = (() => {
     };
   }
 
+  /**
+   * Checks whether the current trick-leader can guarantee winning all remaining
+   * tricks. Returns the seat index of the player calling TRAM, or null.
+   */
+  function detectTRAM(s) {
+    if (s.phase !== Phase.PLAYING || s.currentTrick.length !== 0) return null;
+    const tricksLeft = 5 - s.tricksPlayed;
+    if (tricksLeft < 2) return null;
+
+    // Don't call TRAM when the scoring outcome is already decided
+    if (s.makerTeam !== null && s.makerTeam !== undefined) {
+      const makerTricks    = s.teamTricks[s.makerTeam];
+      const nonMakerTricks = s.teamTricks[1 - s.makerTeam];
+      // Euchre is inevitable — makers can't reach 3 even if they win everything left
+      if (makerTricks + tricksLeft < 3) return null;
+      // Make is secured and march (5 tricks) is impossible — score won't change
+      if (makerTricks >= 3 && nonMakerTricks > 0) return null;
+    }
+
+    const trump = s.trump;
+
+    function strength(card) {
+      if (effectiveSuit(card, trump) === trump)
+        return 100 + trumpStrength(card, trump);
+      return RANK_VALUE[card.rank];
+    }
+
+    const inAnyHand = new Set();
+    s.hands.forEach(h => h && h.forEach(c => inAnyHand.add(c.rank + '|' + c.suit)));
+
+    const fullDeck = [];
+    for (const suit of SUITS)
+      for (const rank of RANKS)
+        fullDeck.push({ suit, rank });
+
+    // Only the current trick-leader can call TRAM
+    const p = s.currentPlayer;
+    if (p === null || p === undefined) return null;
+    if (!s.hands[p] || s.hands[p].length === 0) return null;
+
+    const pKeys = new Set(s.hands[p].map(c => c.rank + '|' + c.suit));
+    const pool  = fullDeck.filter(c => {
+      const key = c.rank + '|' + c.suit;
+      return inAnyHand.has(key) && !pKeys.has(key);
+    });
+
+    const hand       = s.hands[p].slice().sort((a, b) => strength(b) - strength(a));
+    // otherCount = active players other than p
+    const otherCount = [0, 1, 2, 3].filter(i => s.sittingOut !== i && i !== p).length;
+
+    for (let t = 0; t < tricksLeft; t++) {
+      if (hand.length === 0) return null;
+
+      const leadCard = hand.shift();
+      const ledSuit  = effectiveSuit(leadCard, trump);
+
+      // 1. Can any unknown card of the same suit beat the lead?
+      const unknownSameSuit = pool.filter(c => effectiveSuit(c, trump) === ledSuit);
+      if (unknownSameSuit.some(c => cardBeats(c, leadCard, ledSuit, trump))) return null;
+
+      // 2. If leading non-trump, could an opponent be void and trump in?
+      if (ledSuit !== trump) {
+        const unknownTrump = pool.filter(c => effectiveSuit(c, trump) === trump);
+        if (unknownTrump.length > 0 && unknownSameSuit.length < otherCount) return null;
+      }
+
+      // p wins this trick — remove otherCount cards from the pool (worst-case)
+      const bySuit  = unknownSameSuit.slice().sort((a, b) => strength(a) - strength(b));
+      const byOther = pool
+        .filter(c => effectiveSuit(c, trump) !== ledSuit)
+        .sort((a, b) => strength(a) - strength(b));
+
+      let toRemove = otherCount;
+      for (const c of [...bySuit, ...byOther]) {
+        if (toRemove === 0) break;
+        const idx = pool.findIndex(x => x.rank === c.rank && x.suit === c.suit);
+        if (idx !== -1) { pool.splice(idx, 1); toRemove--; }
+      }
+    }
+
+    return p;
+  }
+
   function calcHandResult(makerTeam, alone, teamTricks) {
     const mt = teamTricks[makerTeam];
     const ot = 1 - makerTeam;
@@ -411,7 +501,7 @@ const Euchre = (() => {
     teamOf, createGame,
     actionOrderUp, actionPassRound1, actionDealerDiscard,
     actionCallSuit, actionPassRound2, actionPlayCard,
-    advanceTrick, startNextHand, calcHandResult,
+    advanceTrick, startNextHand, calcHandResult, detectTRAM,
   };
 })();
 

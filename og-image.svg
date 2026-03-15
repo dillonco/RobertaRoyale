@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#030805"/>
+  <!-- subtle grid / felt texture -->
+  <rect width="1200" height="630" fill="url(#felt)" opacity="0.04"/>
+  <defs>
+    <pattern id="felt" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="20" cy="20" r="1" fill="#93f005"/>
+    </pattern>
+  </defs>
+
+  <!-- accent rule top -->
+  <rect x="60" y="60" width="1080" height="3" rx="2" fill="#93f005" opacity="0.6"/>
+
+  <!-- suits row -->
+  <text x="600" y="220" font-family="Georgia,serif" font-size="100" text-anchor="middle" fill="#93f005" opacity="0.18">♠ ♥ ♦ ♣</text>
+
+  <!-- main title -->
+  <text x="600" y="340" font-family="Georgia,serif" font-size="86" font-weight="700" letter-spacing="6" text-anchor="middle" fill="#f0f0f0">ROBERTA ROYALE</text>
+
+  <!-- tagline -->
+  <text x="600" y="410" font-family="Georgia,serif" font-size="32" text-anchor="middle" fill="#93f005" opacity="0.85">Free Online Euchre · No Download · No Account</text>
+
+  <!-- accent rule bottom -->
+  <rect x="60" y="567" width="1080" height="3" rx="2" fill="#93f005" opacity="0.6"/>
+
+  <!-- domain -->
+  <text x="600" y="600" font-family="Georgia,serif" font-size="22" text-anchor="middle" fill="#f0f0f0" opacity="0.4">robertaroyale.com</text>
+</svg>

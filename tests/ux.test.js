@@ -240,3 +240,134 @@ describe('sitting-out player styles', () => {
       'sitting-out player-status should override italic to normal');
   });
 });
+
+// ── Mode card available/coming-soon styles ────────────────────────────────────
+
+describe('mode card available vs coming-soon styles', () => {
+  it('Practice vs AI and Private Game cards have mode-badge but NOT mode-card--soon', () => {
+    assert.ok(
+      html.includes('id="btn-play-practice"') &&
+      !html.match(/id="btn-play-practice"[^>]*class="[^"]*mode-card--soon/),
+      'Practice vs AI should not have mode-card--soon'
+    );
+    assert.ok(
+      html.includes('id="btn-play-private"') &&
+      !html.match(/id="btn-play-private"[^>]*class="[^"]*mode-card--soon/),
+      'Private Game should not have mode-card--soon'
+    );
+  });
+
+  it('Quick Match and Tournaments cards have mode-card--soon class', () => {
+    assert.match(html, /id="btn-play-quick"[^>]*class="[^"]*mode-card--soon/,
+      'Quick Match button should have mode-card--soon class');
+    assert.match(html, /id="btn-play-tourney"[^>]*class="[^"]*mode-card--soon/,
+      'Tournaments button should have mode-card--soon class');
+  });
+
+  it('coming-soon badges use mode-badge--soon class', () => {
+    // Both COMING SOON badges should carry mode-badge--soon
+    const matches = [...html.matchAll(/mode-badge--soon/g)];
+    assert.ok(matches.length >= 2, 'should be at least 2 mode-badge--soon elements');
+  });
+
+  it('available-now badges do NOT carry mode-badge--soon', () => {
+    // Each AVAILABLE NOW span should have class="mode-badge" with no --soon suffix
+    assert.ok(
+      html.includes('class="mode-badge">AVAILABLE NOW'),
+      'AVAILABLE NOW badge should use only mode-badge, not mode-badge--soon'
+    );
+    assert.ok(
+      !html.includes('mode-badge--soon">AVAILABLE NOW'),
+      'AVAILABLE NOW badge must not carry mode-badge--soon'
+    );
+  });
+
+  it('.mode-card--soon has reduced opacity', () => {
+    const rule = getRule('.mode-card--soon');
+    assert.ok(rule, '.mode-card--soon rule not found');
+    assert.match(rule, /opacity/, '.mode-card--soon should set opacity');
+  });
+
+  it('.mode-card--soon suppresses hover lift (no transform)', () => {
+    const idx = css.indexOf('.mode-card--soon:hover');
+    assert.notEqual(idx, -1, '.mode-card--soon:hover rule not found');
+    const open  = css.indexOf('{', idx);
+    const close = css.indexOf('}', open);
+    const rule  = css.slice(open + 1, close);
+    assert.match(rule, /transform:\s*none/, '.mode-card--soon:hover should set transform: none');
+  });
+
+  it('.mode-badge--soon is visually distinct from the available badge', () => {
+    const rule = getRule('.mode-badge--soon');
+    assert.ok(rule, '.mode-badge--soon rule not found');
+    // Should NOT use the accent green
+    assert.ok(
+      !rule.includes('var(--accent)') && !rule.includes('#93f005') && !rule.includes('#93F005'),
+      '.mode-badge--soon should not use the accent color'
+    );
+  });
+});
+
+// ── Disabled button style ─────────────────────────────────────────────────────
+
+describe('disabled button style', () => {
+  it('.btn:disabled rule is defined', () => {
+    assert.ok(css.includes('.btn:disabled'), '.btn:disabled selector not found');
+  });
+
+  it('.btn:disabled has reduced opacity', () => {
+    const rule = getRule('.btn:disabled');
+    assert.ok(rule, '.btn:disabled rule not found');
+    assert.match(rule, /opacity/, '.btn:disabled should reduce opacity');
+  });
+
+  it('.btn:disabled sets cursor: not-allowed', () => {
+    const rule = getRule('.btn:disabled');
+    assert.ok(rule, '.btn:disabled rule not found');
+    assert.match(rule, /cursor:\s*not-allowed/, '.btn:disabled should use not-allowed cursor');
+  });
+});
+
+// ── Lobby seat change feedback ────────────────────────────────────────────────
+
+describe('lobby seat-change styles', () => {
+  it('@keyframes seat-moved is defined', () => {
+    assert.ok(css.includes('@keyframes seat-moved'),
+      '@keyframes seat-moved must be defined for seat-change flash');
+  });
+
+  it('.lobby-seat--just-moved uses the seat-moved animation', () => {
+    const rule = getRule('.lobby-seat--just-moved');
+    assert.ok(rule, '.lobby-seat--just-moved rule not found');
+    assert.match(rule, /seat-moved/, '.lobby-seat--just-moved should reference seat-moved animation');
+  });
+
+  it('.lobby-seat-move button is defined with a fixed width and height', () => {
+    const rule = getRule('.lobby-seat-move');
+    assert.ok(rule, '.lobby-seat-move rule not found');
+    assert.match(rule, /width:\s*30px/, '.lobby-seat-move should be 30px wide');
+    assert.match(rule, /height:\s*30px/, '.lobby-seat-move should be 30px tall');
+  });
+});
+
+// ── Lobby screen scrollability ────────────────────────────────────────────────
+
+describe('lobby screen layout', () => {
+  it('#screen-lobby has a standalone rule setting justify-content: flex-start', () => {
+    // The standalone rule starts at the beginning of a line (not inside a grouped selector)
+    assert.ok(
+      /(?:^|\n)#screen-lobby\s*\{[^}]*justify-content:\s*flex-start/m.test(css),
+      '#screen-lobby should have a standalone rule with justify-content: flex-start'
+    );
+  });
+
+  it('html does not use overflow: hidden (allows lobby to scroll vertically)', () => {
+    const idx = css.indexOf('html {');
+    assert.notEqual(idx, -1, 'html rule not found');
+    const open  = css.indexOf('{', idx);
+    const close = css.indexOf('}', open);
+    const rule  = css.slice(open + 1, close);
+    assert.doesNotMatch(rule, /overflow:\s*hidden/,
+      'html should not use overflow: hidden — it prevents the lobby from scrolling on short screens');
+  });
+});

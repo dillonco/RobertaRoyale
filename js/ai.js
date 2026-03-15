@@ -51,19 +51,23 @@ const EuchreAI = (() => {
       return { action: 'pass' };
     }
 
+    // Canadian Loner: if ordering up partner, it's forced alone — use higher threshold
+    const isOrderingPartner = playerIndex !== state.dealer &&
+                              (playerIndex + 2) % 4 === state.dealer;
+    const forcedAlone = state.canadianLoner && isOrderingPartner;
+
     if (difficulty === 'hard') {
-      // Hard: more accurate hand evaluation — treat dealer pickup as certain
-      // For non-dealer ordering up their partner as dealer, use higher threshold
-      const isOrderingPartner = (state.dealer % 2) === (playerIndex % 2) && playerIndex !== state.dealer;
       const threshold = isOrderingPartner ? 2.8 : 2.0;
       if (strength >= 5.5) return { action: 'order', alone: true };
-      if (strength >= threshold) return { action: 'order', alone: false };
+      if (forcedAlone && strength >= threshold) return { action: 'order', alone: true };
+      if (!forcedAlone && strength >= threshold) return { action: 'order', alone: false };
       return { action: 'pass' };
     }
 
     // Normal
     if (strength >= 6.0) return { action: 'order', alone: true  };
-    if (strength >= 2.5) return { action: 'order', alone: false };
+    if (forcedAlone && strength >= 3.5) return { action: 'order', alone: true };
+    if (!forcedAlone && strength >= 2.5) return { action: 'order', alone: false };
     return { action: 'pass' };
   }
 

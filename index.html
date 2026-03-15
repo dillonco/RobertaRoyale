@@ -2,14 +2,56 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Roberta Royale — free in-browser Euchre. Play against AI or with friends. No download required.">
-  <meta property="og:title" content="Roberta Royale">
-  <meta property="og:description" content="Roberta Royale — free in-browser Euchre. Play vs AI or friends. No account needed.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="description" content="Roberta Royale — free online Euchre. Play the classic Midwest card game against AI or with friends in a private room. No download, no account needed.">
+  <meta name="keywords" content="euchre, euchre online, free euchre, play euchre, card game, multiplayer euchre, euchre against AI">
+  <meta name="robots" content="index, follow">
+
+  <!-- Canonical -->
+  <link rel="canonical" href="https://robertaroyale.com/">
+
+  <!-- Open Graph -->
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Roberta Royale">
+  <meta property="og:title" content="Roberta Royale — Free Online Euchre">
+  <meta property="og:description" content="Play the classic Midwest card game free in your browser. Solo vs AI or private multiplayer rooms. No download, no account needed.">
+  <meta property="og:url" content="https://robertaroyale.com/">
+  <meta property="og:image" content="https://robertaroyale.com/og-image.svg">
+  <meta property="og:image:type" content="image/svg+xml">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Roberta Royale — Free Online Euchre">
+  <meta name="twitter:description" content="Play the classic Midwest card game free in your browser. Solo vs AI or private multiplayer rooms. No download, no account needed.">
+  <meta name="twitter:image" content="https://robertaroyale.com/og-image.svg">
+
+  <!-- JSON-LD structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Roberta Royale",
+    "url": "https://robertaroyale.com/",
+    "description": "Free online Euchre. Play the classic Midwest card game against AI or with friends in a private room.",
+    "applicationCategory": "GameApplication",
+    "genre": "Card Game",
+    "operatingSystem": "Any",
+    "browserRequirements": "Requires JavaScript",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+
   <meta name="theme-color" content="#030805">
-  <title>Roberta Royale</title>
+  <title>Roberta Royale — Free Online Euchre</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%2393f005'>♠</text></svg>">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="stylesheet" href="css/style.css">
   <!-- Preconnect for font loading performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -58,19 +100,19 @@
         </button>
       </li>
       <li>
-        <button id="btn-play-quick" class="mode-card" data-suit="♦">
+        <button id="btn-play-quick" class="mode-card mode-card--soon" data-suit="♦">
           <span class="mode-icon" aria-hidden="true">⚡</span>
           <span class="mode-title">Quick Match</span>
           <span class="mode-desc">Jump into a casual public game</span>
-          <span class="mode-badge">COMING SOON</span>
+          <span class="mode-badge mode-badge--soon">COMING SOON</span>
         </button>
       </li>
       <li>
-        <button id="btn-play-tourney" class="mode-card" data-suit="♣">
+        <button id="btn-play-tourney" class="mode-card mode-card--soon" data-suit="♣">
           <span class="mode-icon" aria-hidden="true">🏆</span>
           <span class="mode-title">Tournaments</span>
           <span class="mode-desc">Compete in scheduled bracket events</span>
-          <span class="mode-badge">COMING SOON</span>
+          <span class="mode-badge mode-badge--soon">COMING SOON</span>
         </button>
       </li>
     </ul>
@@ -80,6 +122,7 @@
     <button class="btn btn--ghost" id="btn-rules">📖 Rules of Euchre</button>
     <button class="btn btn--ghost" id="btn-stats">📊 Stats</button>
     <span style="color:var(--text-muted);font-size:.7rem">Free · No download · WCAG AA</span>
+    <span class="memorial">In memory of Roberta</span>
   </footer>
 </main>
 
@@ -140,6 +183,10 @@
       <label class="toggle-option">
         <input type="checkbox" id="setup-tram" checked>
         <span class="toggle-label">TRAM — auto-play "The Rest Are Mine"</span>
+      </label>
+      <label class="toggle-option">
+        <input type="checkbox" id="setup-canadian-loner">
+        <span class="toggle-label">Canadian Loner — ordering up your partner forces a loner</span>
       </label>
     </fieldset>
 
@@ -535,10 +582,12 @@
       <h2 class="setup-title" style="margin:0">Waiting Room</h2>
       <div class="room-code-box" aria-label="Room code">
         <span class="room-code-label">Room Code</span>
-        <button id="lobby-code-btn" class="room-code-value"
-                aria-label="Copy room code">------</button>
-        <span class="copy-hint" id="copy-hint">click to copy</span>
-        <button id="btn-copy-link" class="btn btn--ghost" style="font-size:.78rem;padding:.35rem .75rem;min-height:36px;margin-top:.25rem" aria-label="Copy invite link">🔗 Copy Link</button>
+        <div class="room-code-row">
+          <button id="lobby-code-btn" class="room-code-value"
+                  aria-label="Copy room code">------</button>
+          <span class="copy-hint" id="copy-hint">click to copy</span>
+          <button id="btn-copy-link" class="btn btn--ghost" style="font-size:.78rem;padding:.35rem .75rem;min-height:36px;" aria-label="Copy invite link">🔗 Copy Link</button>
+        </div>
       </div>
     </div>
 
@@ -575,6 +624,18 @@
           <input type="radio" name="lobby-difficulty" value="hard"> Hard
         </label>
       </div>
+    </fieldset>
+
+    <fieldset class="form-group" id="lobby-rules-group" hidden>
+      <legend class="form-label">House rules</legend>
+      <label class="toggle-option">
+        <input type="checkbox" id="lobby-tram" checked>
+        <span class="toggle-label">TRAM — auto-play "The Rest Are Mine"</span>
+      </label>
+      <label class="toggle-option">
+        <input type="checkbox" id="lobby-canadian-loner">
+        <span class="toggle-label">Canadian Loner — ordering up your partner forces a loner</span>
+      </label>
     </fieldset>
 
     <p id="lobby-status" class="lobby-status" aria-live="polite"></p>

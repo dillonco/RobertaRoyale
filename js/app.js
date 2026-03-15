@@ -920,10 +920,22 @@
     const wrapper = qs('#human-hand-wrapper');
     if (!cp || !toggle) return;
     cp.classList.toggle('controls-panel--open', open);
-    if (wrapper) wrapper.classList.toggle('panel-open', open);
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     toggle.setAttribute('aria-label', open ? 'Close action panel' : 'Open action panel');
     if (badge) badge.hidden = open;
+
+    // Dynamically position hand above the controls panel
+    if (wrapper) {
+      if (open) {
+        // Wait a frame for the panel to finish layout, then measure
+        requestAnimationFrame(() => {
+          const panelHeight = cp.offsetHeight;
+          wrapper.style.bottom = (panelHeight + 8) + 'px';
+        });
+      } else {
+        wrapper.style.bottom = '';
+      }
+    }
   }
 
   function renderControls(s) {
